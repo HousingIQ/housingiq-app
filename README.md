@@ -2,6 +2,19 @@
 
 Housing analytics web application powered by Zillow data.
 
+## Documentation
+
+See the [docs/](./docs/) folder for detailed documentation:
+
+- [Overview](./docs/01-overview.md) - Project introduction
+- [Architecture](./docs/02-architecture.md) - System design
+- [Database Schema](./docs/03-database-schema.md) - Tables and queries
+- [Authentication](./docs/04-authentication.md) - Google OAuth setup
+- [Frontend](./docs/05-frontend.md) - React components
+- [Data Pipeline](./docs/06-data-pipeline.md) - Airflow ETL
+- [Setup Guide](./docs/07-setup-guide.md) - Installation steps
+- [API Reference](./docs/08-api-reference.md) - Endpoints
+
 ## Project Structure
 
 ```
@@ -16,6 +29,7 @@ housingiq-app/
 │   ├── dags/                 # Airflow DAG definitions
 │   ├── scripts/              # ETL scripts
 │   └── docker-compose.yml    # Local Airflow
+├── docs/                     # Documentation
 └── README.md
 ```
 
@@ -28,7 +42,7 @@ cd webapp
 docker compose up -d
 ```
 
-This starts PostgreSQL on port 5432.
+This starts PostgreSQL on port **5433** (to avoid conflicts).
 
 ### 2. Set Up Environment Variables
 
@@ -92,8 +106,8 @@ This loads:
 ## Environment Variables
 
 ```env
-# Database
-DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
+# Database (port 5433 for local Docker)
+DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5433/housingiq
 
 # NextAuth.js
 NEXTAUTH_SECRET=your-secret-key
