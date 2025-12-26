@@ -2,25 +2,55 @@
 
 FastAPI backend for the HousingIQ analytics platform, deployed on Vercel Functions.
 
-## Local Development with uv
+## Project Structure
+
+```
+backend/
+├── main.py                 # Entry point for Vercel
+├── app/
+│   ├── __init__.py
+│   ├── main.py             # FastAPI app initialization
+│   ├── config.py           # Settings (env vars)
+│   ├── api/
+│   │   ├── deps.py         # Dependency injection
+│   │   └── v1/
+│   │       ├── router.py   # v1 API router
+│   │       └── endpoints/
+│   │           ├── health.py
+│   │           ├── metrics.py
+│   │           ├── dashboard.py
+│   │           └── markets.py
+│   ├── schemas/            # Pydantic models
+│   │   ├── metrics.py
+│   │   └── dashboard.py
+│   ├── services/           # Business logic
+│   │   └── mock_data.py
+│   ├── models/             # SQLAlchemy models (future)
+│   └── db/                 # Database config (future)
+├── tests/
+├── pyproject.toml
+├── requirements.txt
+├── vercel.json
+└── Makefile
+```
+
+## Local Development
 
 ### Prerequisites
 
-Install [uv](https://github.com/astral-sh/uv) for fast Python package management:
+Install [uv](https://github.com/astral-sh/uv):
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-# or
-brew install uv
 ```
 
 ### Quick Start
 
 ```bash
-# Create virtual environment and install dependencies
+# Install dependencies
 make install
 
-# Activate the virtual environment
+# Activate virtual environment
 source .venv/bin/activate
 
 # Run development server
@@ -32,63 +62,67 @@ The API will be available at `http://localhost:8000`.
 ### Available Commands
 
 ```bash
-make help              # Show all available commands
-make install           # Create venv and install dependencies
+make help              # Show all commands
+make install           # Create venv and install deps
 make dev               # Run dev server with auto-reload
-make sync-requirements # Update requirements.txt from pyproject.toml
-make update-deps       # Update all dependencies
 make test              # Run tests
-make clean             # Remove virtual environment
+make lint              # Run linter
+make lint-fix          # Fix linting issues
+make sync-requirements # Update requirements.txt
+make clean             # Clean up
 ```
 
 ## API Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | API info and available endpoints |
+| `GET /` | API info |
 | `GET /api/health` | Health check |
-| `GET /api/metrics` | Housing metrics data |
-| `GET /api/macro` | Macroeconomic indicators |
+| `GET /api/metrics` | Housing metrics |
+| `GET /api/macro` | Macro indicators |
 | `GET /api/forecasts` | Price forecasts |
 | `GET /api/dashboard` | Dashboard summary |
-| `GET /api/markets/{region}` | Market data by region |
-| `GET /docs` | Interactive API documentation (Swagger UI) |
+| `GET /api/markets/{region}` | Region data |
+| `GET /docs` | Swagger UI |
+
+## Environment Variables
+
+Create `.env` file:
+
+```env
+# App settings
+DEBUG=false
+ENVIRONMENT=development
+
+# CORS (comma-separated)
+CORS_ORIGINS=["http://localhost:3000"]
+
+# Database (future)
+DATABASE_URL=
+```
+
+## Adding New Features
+
+### New API Endpoint
+
+1. Create endpoint in `app/api/v1/endpoints/`
+2. Add schemas in `app/schemas/`
+3. Add business logic in `app/services/`
+4. Register router in `app/api/v1/router.py`
+
+### Database Integration (Future)
+
+1. Add SQLAlchemy models in `app/models/`
+2. Configure database in `app/db/`
+3. Set up Alembic for migrations
+4. Update services to use database
 
 ## Deployment
 
-This backend is configured for [Vercel Functions](https://vercel.com/docs/functions).
-
-### Deploy to Vercel
+### Vercel
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
 vercel
 ```
 
-### Project Structure
-
-```
-backend/
-├── server.py          # FastAPI application
-├── pyproject.toml     # Project configuration & dependencies
-├── requirements.txt   # Dependencies for Vercel
-├── vercel.json        # Vercel configuration
-├── Makefile           # Development commands
-└── public/            # Static assets
-    └── favicon.ico
-```
-
-### Configuration
-
-- **pyproject.toml**: Contains `[project.scripts]` that tells Vercel where to find the FastAPI app
-- **vercel.json**: Excludes test files and dev artifacts from the bundle
-
-## Technology Stack
-
-- **FastAPI** - Modern, high-performance web framework
-- **Pydantic** - Data validation using Python type hints
-- **uvicorn** - ASGI server for local development
-- **uv** - Fast Python package manager
+The app is configured for automatic deployment via `vercel.json`.

@@ -1,0 +1,2 @@
+"""HousingIQ Backend Application."""
+
