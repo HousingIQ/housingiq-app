@@ -8,10 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Home } from 'lucide-react';
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -19,12 +21,37 @@ export default function LoginPage() {
     signIn('google', { callbackUrl: '/dashboard' });
   };
 
-  const handleCredentialsSignIn = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Signup failed');
+        return;
+      }
+
+      // Auto sign in after successful signup
       const result = await signIn('credentials', {
         email,
         password,
@@ -32,7 +59,7 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Invalid email or password');
+        setError('Account created but login failed. Please try logging in.');
       } else {
         router.push('/dashboard');
       }
@@ -55,18 +82,31 @@ export default function LoginPage() {
         </div>
       </header>
 
-      {/* Login Form */}
+      {/* Signup Form */}
       <main className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Welcome to HousingIQ</CardTitle>
+            <CardTitle className="text-2xl">Create an account</CardTitle>
             <CardDescription>
-              Sign in to access housing analytics and market data
+              Sign up to access housing analytics and market data
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Email/Password Form */}
-            <form onSubmit={handleCredentialsSignIn} className="space-y-4">
+            <form onSubmit={handleSignup} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="name" className="text-sm font-medium text-gray-700">
+                  Name (optional)
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-gray-700">
                   Email
@@ -90,7 +130,21 @@ export default function LoginPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
+                  placeholder="At least 8 characters"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">
+                  Confirm Password
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
@@ -103,7 +157,7 @@ export default function LoginPage() {
                 className="w-full h-12 text-base"
                 disabled={isLoading}
               >
-                {isLoading ? 'Signing in...' : 'Sign in'}
+                {isLoading ? 'Creating account...' : 'Create account'}
               </Button>
             </form>
 
@@ -143,14 +197,14 @@ export default function LoginPage() {
             </Button>
 
             <p className="text-center text-sm text-gray-500">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup" className="text-blue-600 hover:underline">
-                Sign up
+              Already have an account?{' '}
+              <Link href="/login" className="text-blue-600 hover:underline">
+                Sign in
               </Link>
             </p>
 
             <p className="text-center text-sm text-gray-500">
-              By signing in, you agree to our Terms of Service and Privacy Policy.
+              By signing up, you agree to our Terms of Service and Privacy Policy.
             </p>
           </CardContent>
         </Card>

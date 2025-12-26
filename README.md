@@ -42,7 +42,7 @@ cd webapp
 docker compose up -d
 ```
 
-This starts PostgreSQL on port **5433** (to avoid conflicts).
+This starts PostgreSQL on port **5432**.
 
 ### 2. Set Up Environment Variables
 
@@ -106,8 +106,8 @@ This loads:
 ## Environment Variables
 
 ```env
-# Database (port 5433 for local Docker)
-DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5433/housingiq
+# Database (port 5432 for local Docker)
+DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
 
 # NextAuth.js
 NEXTAUTH_SECRET=your-secret-key

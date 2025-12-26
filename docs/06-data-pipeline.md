@@ -79,7 +79,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      WEBAPP_DATABASE_URL: postgresql://housingiq:housingiq_dev@host.docker.internal:5433/housingiq
+      WEBAPP_DATABASE_URL: postgresql://housingiq:housingiq_dev@host.docker.internal:5432/housingiq
 
   airflow-scheduler:
     image: apache/airflow:2.8.1-python3.11
@@ -108,7 +108,7 @@ graph TB
     end
 
     subgraph External["External"]
-        WEBPG[(Webapp Postgres<br/>:5433)]
+        WEBPG[(Webapp Postgres<br/>:5432)]
     end
 
     WS --> APG
@@ -291,7 +291,7 @@ docker compose logs -f airflow-scheduler
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| WEBAPP_DATABASE_URL | Target PostgreSQL | postgresql://housingiq:pass@host:5433/housingiq |
+| WEBAPP_DATABASE_URL | Target PostgreSQL | postgresql://housingiq:pass@host:5432/housingiq |
 | ZILLOW_DATA_PATH | Path to parquet files | /opt/airflow/zillow_data |
 | AIRFLOW_UID | Linux user ID | 50000 |
 
@@ -355,6 +355,6 @@ For full dataset (122M+ rows):
 | Issue | Solution |
 |-------|----------|
 | DAG not visible | Check file syntax, restart scheduler |
-| Connection refused | Ensure webapp Postgres is running on 5433 |
+| Connection refused | Ensure webapp Postgres is running on 5432 |
 | Out of memory | Reduce batch_size parameter |
 | Slow loading | Increase batch_size, add more workers |

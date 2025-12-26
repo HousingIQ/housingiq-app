@@ -62,7 +62,7 @@ mindmap
 - [x] Created `housingiq-app/` folder structure
 - [x] Initialized Next.js 16 with TypeScript
 - [x] Configured Tailwind CSS v4
-- [x] Set up Docker Compose for PostgreSQL (port 5433)
+- [x] Set up Docker Compose for PostgreSQL (port 5432)
 
 ### Phase 2: Database
 - [x] Designed Drizzle ORM schema

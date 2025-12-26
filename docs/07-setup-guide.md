@@ -38,7 +38,7 @@ npm install
 docker compose up -d
 ```
 
-This starts PostgreSQL on port **5433** (to avoid conflicts with existing Postgres).
+This starts PostgreSQL on port **5432**.
 
 Verify it's running:
 ```bash
@@ -52,7 +52,7 @@ The `.env.local` file should already exist. Verify it has:
 
 ```bash
 # Database - Local Docker Postgres
-DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5433/housingiq
+DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
 
 # NextAuth.js
 NEXTAUTH_SECRET=dev-secret-change-in-production-abc123xyz
@@ -136,17 +136,17 @@ flowchart LR
 
 ### Port 5432 Already in Use
 
-We use port 5433 to avoid conflicts. If you need to change it:
+If you need to change the port:
 
 1. Edit `docker-compose.yml`:
    ```yaml
    ports:
-     - "5433:5432"  # Change 5433 to another port
+     - "5432:5432"  # Change 5432 to another port
    ```
 
 2. Update `DATABASE_URL` in `.env.local`:
    ```
-   DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5433/housingiq
+   DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
    ```
 
 ### Database Connection Error

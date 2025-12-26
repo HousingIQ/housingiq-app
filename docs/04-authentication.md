@@ -2,7 +2,33 @@
 
 ## Overview
 
-HousingIQ uses NextAuth.js v5 (Auth.js) with Google OAuth for user authentication. The authentication flow is designed to be simple - no teams, no roles, just single-user access control.
+HousingIQ uses NextAuth.js v5 (Auth.js) for user authentication, supporting both Google OAuth and email/password authentication. The authentication flow is designed to be simple - no teams, no roles, just single-user access control.
+
+## Authentication Methods
+
+### 1. Google OAuth
+Users can sign in with their Google account for quick, passwordless authentication.
+
+### 2. Email/Password
+Users can create an account with their email and password, or sign in with existing credentials.
+
+## Test User Credentials
+
+For development and testing purposes, a test user can be seeded into the database:
+
+| Field | Value |
+|-------|-------|
+| Email | `test@housingiq.com` |
+| Password | `TestPassword123!` |
+| Name | Test User |
+
+To create/update the test user, run:
+```bash
+cd webapp
+npm run db:seed-test-user
+```
+
+**Note:** Never use these credentials in production. This test user is for development purposes only.
 
 ## Authentication Flow
 
@@ -22,6 +48,7 @@ sequenceDiagram
     G->>NA: Return authorization code
     NA->>G: Exchange code for tokens
     G->>NA: Return access_token, id_token
+    NA->>DB: Create/update user record
     NA->>NA: Create session JWT
     NA->>A: Set HTTP-only cookie
     A->>U: Redirect to /dashboard
@@ -33,14 +60,45 @@ sequenceDiagram
     A->>U: Render protected page
 ```
 
+## Email/Password Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as App
+    participant API as API Route
+    participant DB as Database
+    participant NA as NextAuth
+
+    Note over U,NA: Sign Up Flow
+    U->>A: Fill signup form
+    A->>API: POST /api/auth/signup
+    API->>API: Validate input
+    API->>API: Hash password (bcrypt)
+    API->>DB: Insert new user
+    DB->>API: Return user
+    API->>A: Success response
+    A->>NA: signIn('credentials')
+    NA->>A: Set session cookie
+    A->>U: Redirect to /dashboard
+
+    Note over U,NA: Sign In Flow
+    U->>A: Fill login form
+    A->>NA: signIn('credentials')
+    NA->>DB: Query user by email
+    NA->>NA: Compare password hash
+    NA->>A: Set session cookie
+    A->>U: Redirect to /dashboard
+```
+
 ## Session Management
 
 ```mermaid
 stateDiagram-v2
     [*] --> Anonymous: Visit site
     Anonymous --> Authenticating: Click Sign In
-    Authenticating --> Authenticated: OAuth success
-    Authenticating --> Anonymous: OAuth failure
+    Authenticating --> Authenticated: OAuth/Credentials success
+    Authenticating --> Anonymous: Auth failure
     Authenticated --> Anonymous: Sign out
     Authenticated --> Authenticated: Session refresh
 
@@ -60,6 +118,10 @@ stateDiagram-v2
 ```typescript
 import { NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
+import { db, users } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -67,30 +129,34 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    Credentials({
+      name: 'credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        // Validate credentials against database
+        // Returns user object or null
+      },
+    }),
   ],
   pages: {
-    signIn: '/login',  // Custom login page
+    signIn: '/login',
   },
   callbacks: {
+    async signIn({ user, account }) {
+      // Persist Google users to database
+      // Return true to allow sign in
+    },
     authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
-
-      if (isOnDashboard) {
-        return isLoggedIn;  // Require auth for dashboard
-      }
-      return true;  // Allow all other routes
+      // Protect dashboard routes
     },
     jwt({ token, user, account }) {
-      if (user) token.id = user.id;
-      if (account) token.accessToken = account.access_token;
-      return token;
+      // Add user ID to JWT token
     },
     session({ session, token }) {
-      if (session.user && token.id) {
-        session.user.id = token.id as string;
-      }
-      return session;
+      // Add user ID to session
     },
   },
 };
@@ -117,6 +183,25 @@ import { handlers } from '@/lib/auth';
 export const { GET, POST } = handlers;
 ```
 
+### Signup API Route
+
+**File:** `src/app/api/auth/signup/route.ts`
+
+```typescript
+import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
+import { db, users } from '@/lib/db';
+import { eq } from 'drizzle-orm';
+
+export async function POST(request: Request) {
+  // Validate email and password
+  // Check if user exists
+  // Hash password with bcrypt
+  // Insert new user
+  // Return success or error
+}
+```
+
 ### Middleware
 
 **File:** `src/middleware.ts`
@@ -136,6 +221,23 @@ export default auth((req) => {
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 };
+```
+
+## User Schema
+
+**File:** `src/lib/db/schema.ts`
+
+```typescript
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }),
+  image: text('image'),
+  passwordHash: varchar('password_hash', { length: 255 }),
+  googleId: varchar('google_id', { length: 255 }).unique(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
 ```
 
 ## Route Protection
@@ -159,9 +261,11 @@ flowchart TD
 |-------|------------|-------------|
 | `/` | Public | Landing page |
 | `/login` | Public | Login page |
+| `/signup` | Public | Signup page |
 | `/dashboard` | Protected | Main dashboard |
 | `/dashboard/*` | Protected | All dashboard routes |
 | `/api/auth/*` | Public | NextAuth endpoints |
+| `/api/auth/signup` | Public | User registration |
 
 ## Environment Variables
 
@@ -175,6 +279,9 @@ NEXTAUTH_URL=http://localhost:3000
 # Google OAuth
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-your-client-secret
+
+# Database
+DATABASE_URL=postgresql://user:pass@host/database
 ```
 
 ## Setting Up Google OAuth
@@ -233,6 +340,18 @@ export function LoginButton() {
   );
 }
 
+export function CredentialsLoginButton() {
+  const handleLogin = async () => {
+    await signIn('credentials', {
+      email: 'user@example.com',
+      password: 'password123',
+      callbackUrl: '/dashboard',
+    });
+  };
+
+  return <button onClick={handleLogin}>Sign in</button>;
+}
+
 export function LogoutButton() {
   return (
     <button onClick={() => signOut({ callbackUrl: '/' })}>
@@ -274,8 +393,10 @@ interface Session {
 
 | Feature | Implementation |
 |---------|----------------|
+| Password Hashing | bcrypt with 12 rounds |
 | Session Storage | HTTP-only cookies (not accessible via JS) |
 | Token Signing | HMAC-SHA256 with NEXTAUTH_SECRET |
 | CSRF Protection | Built-in NextAuth CSRF tokens |
 | Secure Cookies | `Secure` flag in production |
 | SameSite | `Lax` policy |
+| Password Requirements | Minimum 8 characters |
