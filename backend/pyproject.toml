@@ -1,0 +1,29 @@
+[project]
+name = "housingiq-backend"
+version = "0.1.0"
+description = "FastAPI backend for HousingIQ analytics platform"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.125.0",
+  "uvicorn[standard]>=0.34.0",
+  "pydantic>=2.10.4",
+  "python-dotenv>=1.2.1",
+]
+
+# Vercel uses this to find the FastAPI app
+[project.scripts]
+app = "server:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+# uv configuration for local development
+[tool.uv]
+dev-dependencies = [
+  "pytest>=8.0.0",
+  "httpx>=0.27.0",
+]
