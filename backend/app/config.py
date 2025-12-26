@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = [
         "http://localhost:3000",
-        "https://housingiq-frontend.vercel.app",
+        "https://housingiq-app.vercel.app",
     ]
 
     # Database (for future use)
