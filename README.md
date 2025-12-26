@@ -1,39 +1,146 @@
-# HousingIQ App
+# HousingIQ
 
-Monorepo containing the HousingIQ web application.
+Housing analytics web application powered by Zillow data.
 
-## Structure
+## Project Structure
 
 ```
 housingiq-app/
-├── backend/     # FastAPI backend (Vercel Functions)
-├── frontend/    # Next.js frontend (Vercel)
+├── webapp/                    # Next.js full-stack application
+│   ├── src/
+│   │   ├── app/              # App Router pages
+│   │   ├── components/       # UI components
+│   │   └── lib/              # Utilities, DB, Auth
+│   └── docker-compose.yml    # Local Postgres
+├── data-pipeline/            # Airflow DAGs
+│   ├── dags/                 # Airflow DAG definitions
+│   ├── scripts/              # ETL scripts
+│   └── docker-compose.yml    # Local Airflow
 └── README.md
 ```
 
 ## Quick Start
 
-### Backend
+### 1. Start the Database
 
 ```bash
-cd backend
-make install   # Install dependencies with uv
-make dev       # Run at http://localhost:8000
+cd webapp
+docker compose up -d
 ```
 
-### Frontend
+This starts PostgreSQL on port 5432.
+
+### 2. Set Up Environment Variables
 
 ```bash
-cd frontend
-npm install    # Install dependencies
-npm run dev    # Run at http://localhost:3000
+cp .env.example .env.local
 ```
 
-## Deployment
+Edit `.env.local` and add your Google OAuth credentials:
+- Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- Create OAuth 2.0 credentials
+- Set authorized redirect URI to `http://localhost:3000/api/auth/callback/google`
 
-Both projects are deployed to Vercel as separate projects:
+### 3. Run Database Migrations
 
-- **Backend**: FastAPI on Vercel Functions
-- **Frontend**: Next.js on Vercel
+```bash
+npm run db:push
+```
 
-See individual README files in each folder for deployment details.
+### 4. Start the Development Server
+
+```bash
+npm run dev
+```
+
+Visit http://localhost:3000
+
+## Data Pipeline
+
+### Start Airflow
+
+```bash
+cd data-pipeline
+docker compose up -d
+```
+
+Airflow UI: http://localhost:8080 (admin/admin)
+
+### Load Data
+
+1. Open Airflow UI
+2. Find the `load_zillow_data` DAG
+3. Trigger the DAG manually
+
+This loads:
+- Regions dimension table (75K regions)
+- State-level ZHVI data (173K records)
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS + shadcn/ui |
+| Database | PostgreSQL (Docker/Neon) |
+| ORM | Drizzle ORM |
+| Auth | NextAuth.js v5 + Google OAuth |
+| Charts | Recharts |
+| Data Pipeline | Apache Airflow |
+
+## Environment Variables
+
+```env
+# Database
+DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
+
+# NextAuth.js
+NEXTAUTH_SECRET=your-secret-key
+NEXTAUTH_URL=http://localhost:3000
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+## Database Schema
+
+### Tables
+
+- **users** - Google OAuth users
+- **regions** - Geographic regions (state, county, metro, city, zip, neighborhood)
+- **zhvi_values** - Zillow Home Value Index time series data
+
+## Available Scripts
+
+### Webapp
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run db:push      # Push schema to database
+npm run db:studio    # Open Drizzle Studio
+```
+
+### Data Pipeline
+
+```bash
+docker compose up -d    # Start Airflow
+docker compose down     # Stop Airflow
+docker compose logs -f  # View logs
+```
+
+## Data Source
+
+Data sourced from [Zillow Research](https://www.zillow.com/research/data/).
+
+Available metrics:
+- ZHVI (Zillow Home Value Index)
+- ZORI (Zillow Observed Rent Index)
+- Inventory and sales data
+- Forecasts and market indicators
+
+## License
+
+MIT

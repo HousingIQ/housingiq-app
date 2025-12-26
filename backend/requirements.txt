@@ -1,7 +1,0 @@
-# This file is auto-generated from pyproject.toml
-# To update: run `uv pip compile pyproject.toml -o requirements.txt`
-fastapi>=0.125.0
-uvicorn[standard]>=0.34.0
-pydantic>=2.10.4
-pydantic-settings>=2.7.0
-python-dotenv>=1.2.1
