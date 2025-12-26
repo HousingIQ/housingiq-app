@@ -1,6 +1,77 @@
 # Architecture Documentation
 
-## System Architecture
+## Full System Architecture
+
+```mermaid
+flowchart TB
+    subgraph Sources["External Data Sources"]
+        ZILLOW[Zillow Research API]
+        REDFIN[Redfin - Future]
+        CENSUS[Census - Future]
+    end
+
+    subgraph DataPlatform["Data Platform"]
+        subgraph Orchestration["Dagster (localhost:3000)"]
+            ASSETS[Software-Defined Assets]
+        end
+
+        subgraph Ingestion["Python Ingestion"]
+            DL[Download Raw Files]
+            GX[Great Expectations]
+        end
+
+        subgraph Transform["dbt Transformations"]
+            STG[staging/]
+            MART[marts/]
+        end
+    end
+
+    subgraph Storage["PostgreSQL (localhost:5432)"]
+        RAW[(raw schema)]
+        ANALYTICS[(analytics schema)]
+        APP[(app schema)]
+    end
+
+    subgraph Webapp["Next.js Application (localhost:3001)"]
+        API[API Routes]
+        AUTH[NextAuth.js]
+        UI[React Dashboard]
+    end
+
+    subgraph External["External Services"]
+        GOOGLE[Google OAuth]
+    end
+
+    ZILLOW --> DL
+    REDFIN --> DL
+    CENSUS --> DL
+
+    DL --> GX --> RAW
+    RAW --> STG --> MART --> ANALYTICS
+    ASSETS --> DL
+    ASSETS --> Transform
+
+    ANALYTICS --> API
+    APP --> API
+    API --> UI
+    AUTH --> GOOGLE
+    AUTH --> APP
+```
+
+## Component Overview
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Data Platform** | Dagster + dbt + GX | ETL, transformations, data quality |
+| **Web Application** | Next.js + Drizzle | User interface, API |
+| **Database** | PostgreSQL | Shared data store |
+| **Authentication** | NextAuth.js | Google OAuth |
+
+For detailed data platform architecture, see [09-data-platform.md](./09-data-platform.md).
+
+---
+
+## Web Application Architecture
 
 ```mermaid
 flowchart TB

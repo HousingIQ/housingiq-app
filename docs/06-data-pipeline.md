@@ -1,6 +1,12 @@
 # Data Pipeline Documentation
 
-## Overview
+> **ARCHIVED**: This document describes the legacy Airflow-based pipeline.
+> For the current architecture using **dbt + Dagster + Great Expectations**,
+> see [09-data-platform.md](./09-data-platform.md).
+
+---
+
+## Overview (Legacy)
 
 The data pipeline uses Apache Airflow to orchestrate ETL (Extract, Transform, Load) processes that move Zillow housing data from parquet files into PostgreSQL.
 

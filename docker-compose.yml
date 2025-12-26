@@ -1,0 +1,35 @@
+# Shared infrastructure for HousingIQ
+# Used by both webapp and data-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: housingiq-db
+    environment:
+      POSTGRES_USER: housingiq
+      POSTGRES_PASSWORD: housingiq
+      POSTGRES_DB: housingiq
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U housingiq"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pgweb:
+    image: sosedoff/pgweb
+    container_name: housingiq-pgweb
+    ports:
+      - "8081:8081"
+    environment:
+      DATABASE_URL: postgres://housingiq:housingiq@postgres:5432/housingiq?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

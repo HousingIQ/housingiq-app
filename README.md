@@ -11,9 +11,10 @@ See the [docs/](./docs/) folder for detailed documentation:
 - [Database Schema](./docs/03-database-schema.md) - Tables and queries
 - [Authentication](./docs/04-authentication.md) - Google OAuth setup
 - [Frontend](./docs/05-frontend.md) - React components
-- [Data Pipeline](./docs/06-data-pipeline.md) - Airflow ETL
+- [Data Pipeline](./docs/06-data-pipeline.md) - Airflow ETL (legacy)
 - [Setup Guide](./docs/07-setup-guide.md) - Installation steps
 - [API Reference](./docs/08-api-reference.md) - Endpoints
+- [Data Platform](./docs/09-data-platform.md) - Multi-source data platform architecture
 
 ## Project Structure
 
