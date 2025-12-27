@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 HousingIQ is a full-stack housing analytics application combining a Next.js 15 web app with a Python data platform (Dagster, dbt, Great Expectations). It ingests Zillow housing data and presents analytics through an interactive dashboard.
 
 **Monorepo Structure:**
-- `/webapp` - Next.js 15 application (TypeScript, Drizzle ORM, NextAuth.js)
+- `/webapp` - Next.js 16 application (TypeScript, Drizzle ORM, NextAuth.js)
 - `/data-platform` - Python data engineering (Dagster, dbt, Polars, Great Expectations)
 - Shared PostgreSQL database via Docker Compose
 
