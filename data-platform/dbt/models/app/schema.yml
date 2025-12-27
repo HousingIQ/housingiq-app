@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: app_regions
+    description: |
+      Regions table for the webapp in the exact format expected by
+      the Drizzle ORM schema in housingiq-app/webapp/src/lib/db/schema.ts
+    config:
+      schema: app
+    columns:
+      - name: id
+        description: Auto-generated primary key
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id
+        description: Unique region identifier
+        data_tests:
+          - unique
+          - not_null
+      - name: region_name
+        description: Human-readable region name
+        data_tests:
+          - not_null
+      - name: geography_level
+        description: Geographic hierarchy level
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['National', 'State', 'Metro', 'County', 'City', 'Zip', 'Neighborhood']
+      - name: state
+        description: Two-letter state code
+      - name: state_name
+        description: Full state name
+      - name: city
+        description: City name
+      - name: county
+        description: County name
+      - name: metro
+        description: Metro area name
+
+  - name: app_zhvi_values
+    description: |
+      ZHVI values table for the webapp in the exact format expected by
+      the Drizzle ORM schema in housingiq-app/webapp/src/lib/db/schema.ts
+    config:
+      schema: app
+    columns:
+      - name: id
+        description: Auto-generated primary key
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id
+        description: Foreign key to regions
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('app_regions')
+              field: region_id
+      - name: date
+        description: Observation date
+        data_tests:
+          - not_null
+      - name: value
+        description: Home value in USD
+      - name: geography_level
+        description: Geographic level
+        data_tests:
+          - not_null
+      - name: home_type
+        description: Property type
+        data_tests:
+          - not_null
+      - name: tier
+        description: Price tier
+      - name: bedrooms
+        description: Bedroom count
+      - name: smoothed
+        description: Whether values are smoothed
+      - name: seasonally_adjusted
+        description: Whether values are seasonally adjusted
+      - name: frequency
+        description: Data frequency

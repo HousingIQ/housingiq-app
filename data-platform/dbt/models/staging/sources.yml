@@ -1,0 +1,79 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw data loaded from external sources
+    schema: raw
+    tables:
+      - name: zillow_regions
+        description: Geographic regions from Zillow data
+        columns:
+          - name: region_id
+            description: Unique region identifier
+            data_tests:
+              - unique
+              - not_null
+          - name: region_name
+            description: Human-readable region name
+          - name: geography_level
+            description: Geographic level (State, Metro, County, City, Zip, Neighborhood)
+          - name: state_code
+            description: Two-letter state code
+          - name: state_name
+            description: Full state name
+          - name: city
+            description: City name (if applicable)
+          - name: county_name
+            description: County name (if applicable)
+          - name: metro
+            description: Metro area name (if applicable)
+          - name: size_rank
+            description: Population rank
+
+      - name: zillow_zhvi_values
+        description: ZHVI (Zillow Home Value Index) time series data
+        columns:
+          - name: region_id
+            description: Reference to region
+          - name: date
+            description: Observation date
+            data_tests:
+              - not_null
+          - name: value
+            description: Home value in USD
+          - name: geography_level
+            description: Geographic level
+          - name: home_type
+            description: Property type (All Homes, Single Family, Condo, etc.)
+          - name: tier
+            description: Price tier (Mid-Tier, Top-Tier, Bottom-Tier)
+          - name: smoothed
+            description: Whether values are smoothed
+          - name: seasonally_adjusted
+            description: Whether values are seasonally adjusted
+          - name: frequency
+            description: Data frequency (monthly, weekly)
+          - name: bedrooms
+            description: Bedroom count filter (nullable)
+
+      - name: zillow_zori_values
+        description: ZORI (Zillow Observed Rent Index) time series data
+        columns:
+          - name: region_id
+            description: Reference to region
+          - name: date
+            description: Observation date
+            data_tests:
+              - not_null
+          - name: value
+            description: Rent value in USD
+          - name: geography_level
+            description: Geographic level
+          - name: home_type
+            description: Property type
+          - name: smoothed
+            description: Whether values are smoothed
+          - name: seasonally_adjusted
+            description: Whether values are seasonally adjusted
+          - name: frequency
+            description: Data frequency (monthly, weekly)

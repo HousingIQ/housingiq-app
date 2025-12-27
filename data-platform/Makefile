@@ -1,112 +1,121 @@
-# HousingIQ Data Platform Makefile
+.PHONY: help setup install dagster dbt-run dbt-test dbt-docs gx test lint clean
 
-.PHONY: setup dagster dbt-run dbt-test dbt-docs dbt-build gx gx-docs test clean help
+help:  ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-help:
-	@echo "Data Platform Commands"
-	@echo "======================"
-	@echo ""
-	@echo "Setup:"
-	@echo "  make setup     - Install dependencies and dbt packages"
-	@echo ""
-	@echo "Dagster:"
-	@echo "  make dagster   - Start Dagster UI (localhost:3000)"
-	@echo ""
-	@echo "dbt:"
-	@echo "  make dbt-run   - Run dbt models"
-	@echo "  make dbt-test  - Run dbt tests"
-	@echo "  make dbt-build - Run dbt build (run + test)"
-	@echo "  make dbt-docs  - Generate and serve dbt docs"
-	@echo ""
-	@echo "Data Quality:"
-	@echo "  make gx        - Run Great Expectations checkpoint"
-	@echo "  make gx-docs   - Generate GX data docs"
-	@echo ""
-	@echo "Testing:"
-	@echo "  make test      - Run all tests"
-	@echo "  make lint      - Run linter"
-	@echo ""
-	@echo "Cleanup:"
-	@echo "  make clean     - Remove local data files"
-
-# ============================================================================
+# =============================================================================
 # Setup
-# ============================================================================
+# =============================================================================
 
-setup:
+setup: install dbt-deps  ## Full setup: install dependencies and dbt packages
+
+install:  ## Install Python dependencies
 	pip install -e ".[dev]"
+
+dbt-deps:  ## Install dbt packages
 	cd dbt && dbt deps
-	@echo ""
-	@echo "Setup complete! Next steps:"
-	@echo "  1. Ensure PostgreSQL is running: cd .. && make up"
-	@echo "  2. Start Dagster: make dagster"
 
-# ============================================================================
+# =============================================================================
 # Dagster
-# ============================================================================
+# =============================================================================
 
-dagster:
+dagster:  ## Start Dagster webserver
 	dagster dev -m dagster.definitions
 
-dagster-materialize:
-	dagster job execute -m dagster.definitions -j __ASSET_JOB
+dagster-materialize:  ## Materialize all assets
+	dagster asset materialize --select "*" -m dagster.definitions
 
-# ============================================================================
+# =============================================================================
 # dbt
-# ============================================================================
+# =============================================================================
 
-dbt-run:
+dbt-run:  ## Run dbt models
 	cd dbt && dbt run
 
-dbt-test:
+dbt-run-staging:  ## Run staging models only
+	cd dbt && dbt run --select staging.*
+
+dbt-run-marts:  ## Run mart models only
+	cd dbt && dbt run --select marts.*
+
+dbt-run-app:  ## Run app models only
+	cd dbt && dbt run --select app.*
+
+dbt-test:  ## Run dbt tests
 	cd dbt && dbt test
 
-dbt-build:
-	cd dbt && dbt build
+dbt-docs:  ## Generate and serve dbt docs
+	cd dbt && dbt docs generate && dbt docs serve
 
-dbt-docs:
-	cd dbt && dbt docs generate && dbt docs serve --port 8080
+dbt-compile:  ## Compile dbt project
+	cd dbt && dbt compile
 
-dbt-clean:
+dbt-clean:  ## Clean dbt artifacts
 	cd dbt && dbt clean
 
-# ============================================================================
+# =============================================================================
 # Great Expectations
-# ============================================================================
+# =============================================================================
 
-gx:
+gx:  ## Run Great Expectations validation
 	great_expectations checkpoint run zillow_checkpoint
 
-gx-docs:
-	great_expectations docs build --site-name local_site
+gx-docs:  ## Build and open GX data docs
+	great_expectations docs build
 
-# ============================================================================
-# Testing & Linting
-# ============================================================================
+# =============================================================================
+# Ingestion
+# =============================================================================
 
-test:
+scrape:  ## Scrape Zillow URLs and save manifest
+	python -c "from ingestion.sources.zillow import ZillowScraper; s=ZillowScraper(); s.save_manifest(s.generate_all_urls())"
+
+download:  ## Download Zillow data (default categories)
+	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data()"
+
+download-all:  ## Download all Zillow data (all categories)
+	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(categories=None)"
+
+transform:  ## Transform downloaded data
+	python -c "from ingestion.sources.zillow import ZillowSource; ZillowSource().run_full_pipeline()"
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+test:  ## Run pytest
 	pytest tests/ -v
-	cd dbt && dbt test
 
-lint:
+test-cov:  ## Run pytest with coverage
+	pytest tests/ -v --cov=ingestion --cov=dagster --cov-report=html
+
+# =============================================================================
+# Code Quality
+# =============================================================================
+
+lint:  ## Run linter (ruff)
 	ruff check .
-	ruff format --check .
 
-format:
-	ruff format .
+lint-fix:  ## Fix linting issues
 	ruff check --fix .
 
-typecheck:
-	mypy dagster/ ingestion/
+format:  ## Format code
+	ruff format .
 
-# ============================================================================
+typecheck:  ## Run type checker
+	mypy ingestion dagster
+
+# =============================================================================
 # Cleanup
-# ============================================================================
+# =============================================================================
 
-clean:
-	rm -rf data/raw/*
-	rm -rf data/staging/*
-	@echo "Local data cleaned"
+clean:  ## Clean all generated files
+	rm -rf data/
+	rm -rf .pytest_cache/
+	rm -rf htmlcov/
+	rm -rf .ruff_cache/
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	cd dbt && dbt clean
 
-clean-all: clean dbt-clean
-	@echo "All generated files cleaned"
+clean-data:  ## Clean downloaded data only
+	rm -rf data/

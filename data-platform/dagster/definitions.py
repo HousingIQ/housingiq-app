@@ -1,33 +1,28 @@
 """
-Dagster definitions for HousingIQ data platform.
+Dagster Definitions.
 
-This is the main entry point for Dagster. Run with:
-    dagster dev -m dagster.definitions
+Main entry point for the HousingIQ data platform Dagster deployment.
 """
 
+import sys
 from pathlib import Path
 
-from dagster import Definitions, EnvVar
-from dagster_dbt import DbtCliResource, DbtProject
+from dagster import Definitions, load_assets_from_modules
 
-# Import assets (will be implemented in Phase 3-4)
-# from .assets import (
-#     raw_zillow_manifest,
-#     raw_zillow_zhvi,
-#     raw_zillow_regions,
-#     stg_zillow_regions,
-#     stg_zillow_zhvi,
-#     all_dbt_assets,
-# )
-# from .resources import postgres_resource
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# dbt project configuration
-DBT_PROJECT_DIR = Path(__file__).parent.parent / "dbt"
+from . import assets
+from .resources import default_resources
+from .schedules import schedules
+from .sensors import sensors
 
-# Placeholder definitions - will be populated in Phase 3-4
+# Load all assets from the assets module
+all_assets = load_assets_from_modules([assets])
+
 defs = Definitions(
-    assets=[],
-    resources={
-        "dbt": DbtCliResource(project_dir=DBT_PROJECT_DIR),
-    },
+    assets=all_assets,
+    schedules=schedules,
+    sensors=sensors,
+    resources=default_resources,
 )

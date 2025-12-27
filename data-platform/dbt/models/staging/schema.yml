@@ -1,0 +1,85 @@
+version: 2
+
+models:
+  - name: stg_zillow__regions
+    description: Cleaned and standardized Zillow geographic regions
+    columns:
+      - name: region_id
+        description: Unique region identifier
+        data_tests:
+          - unique
+          - not_null
+      - name: region_name
+        description: Human-readable region name
+        data_tests:
+          - not_null
+      - name: geography_level
+        description: Geographic hierarchy level
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['National', 'State', 'Metro', 'County', 'City', 'Zip', 'Neighborhood']
+
+  - name: stg_zillow__zhvi_values
+    description: Cleaned ZHVI (home value) observations
+    columns:
+      - name: zhvi_value_id
+        description: Surrogate key for this observation
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id
+        description: Foreign key to regions
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_zillow__regions')
+              field: region_id
+      - name: observation_date
+        description: Date of observation
+        data_tests:
+          - not_null
+      - name: home_value_usd
+        description: Home value in USD
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 100000000
+      - name: home_type
+        description: Property type
+        data_tests:
+          - accepted_values:
+              values: ['All Homes', 'Single Family', 'Condo', 'Multi Family', 'All Homes Plus Multifamily', 'Unknown']
+      - name: price_tier
+        description: Price tier classification
+        data_tests:
+          - accepted_values:
+              values: ['All', 'Top-Tier', 'Mid-Tier', 'Bottom-Tier']
+
+  - name: stg_zillow__zori_values
+    description: Cleaned ZORI (rental) observations
+    columns:
+      - name: zori_value_id
+        description: Surrogate key for this observation
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id
+        description: Foreign key to regions
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('stg_zillow__regions')
+              field: region_id
+      - name: observation_date
+        description: Date of observation
+        data_tests:
+          - not_null
+      - name: rent_value_usd
+        description: Rent value in USD
+        data_tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 50000

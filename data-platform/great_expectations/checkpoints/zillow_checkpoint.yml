@@ -1,0 +1,37 @@
+name: zillow_checkpoint
+config_version: 1.0
+template_name:
+module_name: great_expectations.checkpoint
+class_name: Checkpoint
+run_name_template: "%Y%m%d-%H%M%S-zillow-validation"
+expectation_suite_name:
+batch_request: {}
+action_list:
+  - name: store_validation_result
+    action:
+      class_name: StoreValidationResultAction
+  - name: store_evaluation_params
+    action:
+      class_name: StoreEvaluationParametersAction
+  - name: update_data_docs
+    action:
+      class_name: UpdateDataDocsAction
+evaluation_parameters: {}
+runtime_configuration: {}
+validations:
+  - batch_request:
+      datasource_name: zillow_datasource
+      data_connector_name: default_inferred_data_connector_name
+      data_asset_name: zhvi_regions
+    expectation_suite_name: zillow_regions_suite
+  - batch_request:
+      datasource_name: zillow_datasource
+      data_connector_name: default_inferred_data_connector_name
+      data_asset_name: zhvi_values
+    expectation_suite_name: zillow_zhvi_values_suite
+  - batch_request:
+      datasource_name: zillow_datasource
+      data_connector_name: default_inferred_data_connector_name
+      data_asset_name: zori_values
+    expectation_suite_name: zillow_zori_values_suite
+profilers: []

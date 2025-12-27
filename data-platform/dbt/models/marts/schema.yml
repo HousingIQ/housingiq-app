@@ -1,0 +1,252 @@
+version: 2
+
+models:
+  - name: dim_regions
+    description: Geographic regions dimension table with SCD Type 2 support
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: region_id
+        description: Unique region identifier (primary key)
+        data_type: text
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id_original
+        description: Original Zillow RegionID
+        data_type: text
+      - name: region_name
+        description: Human-readable region name
+        data_type: text
+        data_tests:
+          - not_null
+      - name: geography_level
+        description: Geographic hierarchy level
+        data_type: text
+        data_tests:
+          - not_null
+      - name: geography_level_rank
+        description: Numeric rank of geography level (1=National, 7=Neighborhood)
+        data_type: integer
+      - name: state_code
+        description: Two-letter state code
+        data_type: text
+      - name: state_name
+        description: Full state name
+        data_type: text
+      - name: city
+        description: City name
+        data_type: text
+      - name: county_name
+        description: County name
+        data_type: text
+      - name: metro
+        description: Metro area name
+        data_type: text
+      - name: display_name
+        description: Formatted display name for UI
+        data_type: text
+      - name: size_rank
+        description: Population rank
+        data_type: bigint
+      - name: valid_from
+        description: SCD Type 2 - when this record became valid
+        data_type: timestamp with time zone
+      - name: valid_to
+        description: SCD Type 2 - when this record was superseded
+        data_type: timestamp with time zone
+      - name: is_current
+        description: SCD Type 2 - whether this is the current record
+        data_type: boolean
+      - name: _loaded_at
+        description: ETL load timestamp
+        data_type: timestamp with time zone
+
+  - name: dim_date
+    description: Date dimension for time-series analysis
+    columns:
+      - name: date_key
+        description: Primary key (first of month)
+        data_tests:
+          - unique
+          - not_null
+      - name: year
+        description: Calendar year
+      - name: month
+        description: Calendar month (1-12)
+      - name: quarter
+        description: Calendar quarter (1-4)
+
+  - name: fct_zhvi_values
+    description: ZHVI (home value) fact table with derived metrics
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: zhvi_value_id
+        description: Surrogate key
+        data_type: text
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id
+        description: Foreign key to dim_regions
+        data_type: text
+        data_tests:
+          - not_null
+      - name: date_key
+        description: Foreign key to dim_date
+        data_type: date
+      - name: observation_date
+        description: Date of observation
+        data_type: date
+        data_tests:
+          - not_null
+      - name: observation_month
+        description: First of month
+        data_type: date
+      - name: observation_year
+        description: Year
+        data_type: integer
+      - name: home_value_usd
+        description: Home value in USD
+        data_type: double precision
+        data_tests:
+          - not_null
+      - name: prev_month_value
+        description: Previous month's value
+        data_type: double precision
+      - name: mom_change_usd
+        description: Month-over-month change in USD
+        data_type: double precision
+      - name: mom_change_pct
+        description: Month-over-month change percentage
+        data_type: numeric
+      - name: prev_year_value
+        description: Same month previous year value
+        data_type: double precision
+      - name: yoy_change_usd
+        description: Year-over-year change in USD
+        data_type: double precision
+      - name: yoy_change_pct
+        description: Year-over-year change percentage
+        data_type: numeric
+      - name: home_type
+        description: Property type
+        data_type: text
+      - name: price_tier
+        description: Price tier (Mid/Top/Bottom)
+        data_type: text
+      - name: bedroom_count
+        description: Bedroom count filter
+        data_type: bigint
+      - name: geography_level
+        description: Geographic level
+        data_type: text
+      - name: is_smoothed
+        description: Whether values are smoothed
+        data_type: boolean
+      - name: is_seasonally_adjusted
+        description: Whether values are seasonally adjusted
+        data_type: boolean
+      - name: frequency
+        description: Data frequency
+        data_type: text
+      - name: _loaded_at
+        description: ETL load timestamp
+        data_type: timestamp with time zone
+
+  - name: fct_zori_values
+    description: ZORI (rental value) fact table with derived metrics
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: zori_value_id
+        description: Surrogate key
+        data_type: text
+        data_tests:
+          - unique
+          - not_null
+      - name: region_id
+        description: Foreign key to dim_regions
+        data_type: text
+        data_tests:
+          - not_null
+      - name: date_key
+        description: Foreign key to dim_date
+        data_type: date
+      - name: observation_date
+        description: Date of observation
+        data_type: date
+        data_tests:
+          - not_null
+      - name: observation_month
+        description: First of month
+        data_type: date
+      - name: observation_year
+        description: Year
+        data_type: integer
+      - name: rent_value_usd
+        description: Rent value in USD
+        data_type: double precision
+        data_tests:
+          - not_null
+      - name: prev_month_value
+        description: Previous month's value
+        data_type: double precision
+      - name: mom_change_usd
+        description: Month-over-month change in USD
+        data_type: double precision
+      - name: mom_change_pct
+        description: Month-over-month change percentage
+        data_type: numeric
+      - name: prev_year_value
+        description: Same month previous year value
+        data_type: double precision
+      - name: yoy_change_usd
+        description: Year-over-year change in USD
+        data_type: double precision
+      - name: yoy_change_pct
+        description: Year-over-year change percentage
+        data_type: numeric
+      - name: home_type
+        description: Property type
+        data_type: text
+      - name: geography_level
+        description: Geographic level
+        data_type: text
+      - name: is_smoothed
+        description: Whether values are smoothed
+        data_type: boolean
+      - name: is_seasonally_adjusted
+        description: Whether values are seasonally adjusted
+        data_type: boolean
+      - name: frequency
+        description: Data frequency
+        data_type: text
+      - name: _loaded_at
+        description: ETL load timestamp
+        data_type: timestamp with time zone
+
+  - name: agg_regional_summary
+    description: Pre-computed regional summary for dashboard queries
+    columns:
+      - name: region_id
+        description: Primary key, links to dim_regions
+        data_tests:
+          - unique
+          - not_null
+      - name: current_home_value
+        description: Latest ZHVI value
+      - name: home_value_yoy_pct
+        description: Year-over-year home value change
+      - name: current_rent_value
+        description: Latest ZORI value
+      - name: rent_yoy_pct
+        description: Year-over-year rent change
+      - name: price_to_rent_ratio
+        description: Home price / annual rent
+      - name: gross_rent_yield_pct
+        description: Annual rent / home price as percentage

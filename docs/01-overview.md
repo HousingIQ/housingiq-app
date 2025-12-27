@@ -9,7 +9,7 @@ HousingIQ is a housing analytics web application that provides insights into US 
 1. **Visualize Housing Data**: Display Zillow Home Value Index (ZHVI) trends over time
 2. **Geographic Analysis**: Compare housing values across states, metros, cities, and zip codes
 3. **User Authentication**: Secure access via Google OAuth
-4. **Data Pipeline**: Automated ETL process using Apache Airflow
+4. **Modern Data Platform**: Automated ETL using Dagster, dbt, and Great Expectations
 
 ## High-Level Architecture
 
@@ -17,12 +17,12 @@ HousingIQ is a housing analytics web application that provides insights into US 
 graph TB
     subgraph "Data Sources"
         Z[Zillow Research Data]
-        P[Parquet Files]
     end
 
-    subgraph "Data Pipeline"
-        A[Apache Airflow]
-        E[ETL Scripts]
+    subgraph "Data Platform"
+        DAG[Dagster Orchestration]
+        DBT[dbt Transformations]
+        GX[Great Expectations]
     end
 
     subgraph "Backend"
@@ -39,26 +39,24 @@ graph TB
 
     subgraph "External Services"
         G[Google OAuth]
-        N[Neon Postgres - Prod]
     end
 
-    Z --> P
-    P --> A
-    A --> E
-    E --> DB
+    Z --> DAG
+    DAG --> GX
+    GX --> DBT
+    DBT --> DB
     DB --> API
     API --> DASH
     API --> COMP
     AUTH --> G
     LP --> AUTH
-    DB -.-> N
 ```
 
 ## Technology Stack
 
 | Layer | Technology | Version |
 |-------|------------|---------|
-| Framework | Next.js | 16.1.1 |
+| Framework | Next.js | 15.x |
 | Language | TypeScript | 5.x |
 | Styling | Tailwind CSS | 4.x |
 | UI Components | shadcn/ui + Radix UI | - |
@@ -66,47 +64,55 @@ graph TB
 | ORM | Drizzle ORM | 0.45.x |
 | Authentication | NextAuth.js | 5.0 (beta) |
 | Charts | Recharts | 3.x |
-| Data Pipeline | Apache Airflow | 2.8.x |
+| Orchestration | Dagster | 1.6.x |
+| Transformations | dbt | 1.7.x |
+| Data Quality | Great Expectations | 0.18.x |
 | Data Processing | Polars (Python) | 0.20.x |
 
 ## Project Structure
 
 ```
-housingiq-app/
-├── webapp/                    # Next.js application
+housingiq-app/                     # Monorepo root
+├── webapp/                        # Next.js application
 │   ├── src/
-│   │   ├── app/              # App Router pages
-│   │   │   ├── page.tsx      # Landing page
-│   │   │   ├── login/        # Login page
-│   │   │   ├── dashboard/    # Protected dashboard
-│   │   │   └── api/          # API routes
-│   │   ├── components/       # React components
-│   │   │   └── ui/           # UI components
-│   │   └── lib/              # Utilities
-│   │       ├── db/           # Database schema & queries
-│   │       └── auth/         # Authentication config
-│   ├── docker-compose.yml    # Local PostgreSQL
-│   └── drizzle.config.ts     # Drizzle ORM config
-├── data-pipeline/            # Airflow setup
-│   ├── dags/                 # DAG definitions
-│   ├── scripts/              # ETL scripts
-│   └── docker-compose.yml    # Airflow services
-└── docs/                     # Documentation
+│   │   ├── app/                  # App Router pages
+│   │   │   ├── page.tsx          # Landing page
+│   │   │   ├── login/            # Login page
+│   │   │   ├── dashboard/        # Protected dashboard
+│   │   │   └── api/              # API routes
+│   │   ├── components/           # React components
+│   │   │   └── ui/               # UI components
+│   │   └── lib/                  # Utilities
+│   │       ├── db/               # Database schema & queries
+│   │       └── auth/             # Authentication config
+│   └── .env.local                # Environment variables
+│
+├── data-platform/                 # Data engineering stack
+│   ├── ingestion/                # Python data extraction
+│   ├── dagster/                  # Orchestration
+│   ├── dbt/                      # SQL transformations
+│   ├── great_expectations/       # Data quality
+│   └── tests/                    # Python tests
+│
+├── docker-compose.yml            # Shared PostgreSQL
+├── Makefile                      # Orchestration commands
+└── docs/                         # Documentation
 ```
 
 ## Key Features
 
 ### Implemented
 
-- [x] Next.js 16 application with App Router
+- [x] Next.js 15 application with App Router
 - [x] Google OAuth authentication
 - [x] Landing page with feature preview
 - [x] Dashboard with ZHVI charts
 - [x] State comparison functionality
 - [x] Drizzle ORM database schema
 - [x] Docker Compose for local PostgreSQL
-- [x] Airflow data pipeline setup
-- [x] ETL scripts for loading parquet data
+- [x] Dagster + dbt data platform
+- [x] Zillow data ingestion pipeline
+- [x] Great Expectations validation
 
 ### Planned
 

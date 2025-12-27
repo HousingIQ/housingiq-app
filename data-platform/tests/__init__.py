@@ -1,1 +1,3 @@
-"""HousingIQ data platform tests."""
+"""
+Tests for the HousingIQ data platform.
+"""

@@ -23,7 +23,7 @@
 
 ### Architecture
 - [System Overview](./01-overview.md#high-level-architecture)
-- [Repository Structure](./09-data-platform.md#repository-structure)
+- [Repository Structure](#repository-structure)
 - [Data Model (Star Schema)](./09-data-platform.md#star-schema-design)
 
 ### Data Platform
@@ -36,7 +36,6 @@
 ### Data Sources
 - [Zillow Data Source](./10-zillow-data-source.md) - Scraper, downloader, ETL
 - [Zillow Data Schema](./10-zillow-data-source.md#data-schema)
-- [Migration to Dagster](./10-zillow-data-source.md#migration-to-data-platform)
 
 ### Development
 - [Frontend Components](./05-frontend.md)
@@ -46,33 +45,26 @@
 ## Repository Structure
 
 ```
-housingiq/
-├── housingiq-app/                  # Main application
-│   ├── docker-compose.yml          # Shared PostgreSQL infrastructure
-│   ├── Makefile                    # Root-level commands
-│   ├── init-db/                    # Database initialization scripts
-│   │
-│   ├── data-platform/              # Data Engineering (future)
-│   │   ├── dagster/                # Orchestration (localhost:3000)
-│   │   ├── dbt/                    # Transformations + contracts
-│   │   ├── great_expectations/     # Data quality
-│   │   ├── ingestion/              # Python extraction code
-│   │   └── data/                   # Local data lake
-│   │
-│   ├── webapp/                     # Next.js Application
-│   │   ├── src/app/                # Pages and API routes
-│   │   ├── src/components/         # React components
-│   │   └── src/lib/db/             # Drizzle ORM
-│   │
-│   └── docs/                       # Documentation
+housingiq-app/                      # Monorepo root
+├── webapp/                         # Next.js Application
+│   ├── src/app/                    # Pages and API routes
+│   ├── src/components/             # React components
+│   ├── src/lib/db/                 # Drizzle ORM
+│   └── .env.local                  # Webapp environment variables
 │
-└── zillow_data_sc/                 # Zillow Data Source (to be migrated)
-    ├── scrapper.py                 # URL generator (150+ files)
-    ├── downloader.py               # Parallel CSV downloader
-    ├── etl_zhvi.py                 # Wide → long transformation
-    ├── manifest.json               # Auto-generated URL catalog
-    ├── data/                       # Downloaded CSVs
-    └── data_processed/             # Parquet files
+├── data-platform/                  # Data Engineering Stack
+│   ├── ingestion/                  # Python extraction code (Zillow)
+│   ├── dagster/                    # Orchestration (localhost:3000)
+│   ├── dbt/                        # Transformations + contracts
+│   ├── great_expectations/         # Data quality
+│   ├── tests/                      # Python tests
+│   └── data/                       # Local data lake
+│
+├── docker-compose.yml              # Shared PostgreSQL infrastructure
+├── Makefile                        # Project orchestration commands
+├── init-db/                        # Database initialization scripts
+├── .env.example                    # Shared DATABASE_URL
+└── docs/                           # Documentation
 ```
 
 ## Tech Stack
@@ -91,8 +83,8 @@ housingiq/
 
 | Category | Technology | Purpose |
 |----------|------------|---------|
-| **Framework** | Next.js 16 | React server components |
-| **Styling** | Tailwind CSS v4 | Utility-first CSS |
+| **Framework** | Next.js 15 | React server components |
+| **Styling** | Tailwind CSS | Utility-first CSS |
 | **Charts** | Recharts | Data visualization |
 | **ORM** | Drizzle | Type-safe database access |
 | **Auth** | NextAuth.js v5 | Google OAuth |
@@ -109,8 +101,8 @@ housingiq/
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **Dagster UI** | http://localhost:3000 | Orchestration dashboard, asset lineage |
-| **Next.js App** | http://localhost:3001 | Web application |
+| **Next.js App** | http://localhost:3000 | Web application |
+| **Dagster UI** | http://localhost:3000 | Orchestration dashboard (run separately) |
 | **dbt Docs** | http://localhost:8080 | Data catalog and documentation |
 | **pgweb** | http://localhost:8081 | Database browser |
 | **PostgreSQL** | localhost:5432 | Database connection |
@@ -122,15 +114,20 @@ housingiq/
 cd housingiq-app
 make up
 
-# 2. Run data platform
+# 2. Run webapp
+cd webapp
+cp .env.example .env.local   # Edit with your credentials
+npm install
+npm run db:push
+npm run dev                   # Opens localhost:3000
+
+# 3. Run data platform (in another terminal)
+conda create -n housingiq python=3.11 -y
+conda activate housingiq
 cd data-platform
 pip install -e ".[dev]"
-dagster dev                     # Opens localhost:3000
-
-# 3. Run webapp (in another terminal)
-cd webapp
-npm install
-npm run dev                     # Opens localhost:3001
+cd dbt && dbt deps && cd ..
+make dagster                  # Opens Dagster UI
 ```
 
 ## Data Engineering Patterns Demonstrated
@@ -154,13 +151,10 @@ This project showcases production-grade data engineering:
 - [x] Next.js webapp with authentication
 - [x] PostgreSQL database with Drizzle ORM
 - [x] Dashboard with ZHVI charts
-- [x] Data platform architecture design
-
-### In Progress
-- [ ] Implement Dagster assets for ingestion
-- [ ] Create dbt models (staging, marts)
-- [ ] Set up Great Expectations suites
-- [ ] Connect webapp to analytics schema
+- [x] Data platform with Dagster + dbt + GX
+- [x] Zillow data ingestion pipeline
+- [x] dbt staging and mart models
+- [x] Great Expectations validation suites
 
 ### Planned
 - [ ] Add Redfin data source

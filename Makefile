@@ -55,7 +55,7 @@ webapp:
 	cd webapp && npm run dev
 
 dagster:
-	cd data-platform && dagster dev
+	cd data-platform && dagster dev -m dagster.definitions
 
 dbt:
 	cd data-platform/dbt && dbt build
@@ -68,7 +68,7 @@ dbt-docs:
 # ============================================================================
 
 run-pipeline:
-	cd data-platform && dagster job execute -m dagster.definitions -j all_assets
+	cd data-platform && dagster job execute -m dagster.definitions -j full_pipeline_job
 
 # ============================================================================
 # Setup (first time)

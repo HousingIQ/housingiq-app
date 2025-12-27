@@ -1,0 +1,103 @@
+{
+  "expectation_suite_name": "zillow_zori_values_suite",
+  "data_asset_type": "Dataset",
+  "meta": {
+    "great_expectations_version": "0.18.0"
+  },
+  "expectations": [
+    {
+      "expectation_type": "expect_table_columns_to_match_set",
+      "kwargs": {
+        "column_set": [
+          "region_id",
+          "date",
+          "value",
+          "geography_level",
+          "home_type",
+          "smoothed",
+          "seasonally_adjusted",
+          "frequency"
+        ],
+        "exact_match": false
+      },
+      "meta": {
+        "notes": "Ensure expected columns are present"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "region_id"
+      },
+      "meta": {
+        "notes": "region_id is required"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "date"
+      },
+      "meta": {
+        "notes": "date is required"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_not_be_null",
+      "kwargs": {
+        "column": "value"
+      },
+      "meta": {
+        "notes": "value is required"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_between",
+      "kwargs": {
+        "column": "value",
+        "min_value": 100,
+        "max_value": 50000,
+        "mostly": 0.99
+      },
+      "meta": {
+        "notes": "Rent values should be in reasonable range ($100 - $50K/month)"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "home_type",
+        "value_set": [
+          "All Homes",
+          "Single Family",
+          "Multi Family",
+          "All Homes Plus Multifamily",
+          "Unknown"
+        ]
+      },
+      "meta": {
+        "notes": "Valid home types for rentals"
+      }
+    },
+    {
+      "expectation_type": "expect_column_values_to_be_in_set",
+      "kwargs": {
+        "column": "frequency",
+        "value_set": ["monthly", "weekly"]
+      },
+      "meta": {
+        "notes": "Valid frequency values"
+      }
+    },
+    {
+      "expectation_type": "expect_table_row_count_to_be_between",
+      "kwargs": {
+        "min_value": 10000,
+        "max_value": 100000000
+      },
+      "meta": {
+        "notes": "Reasonable range for ZORI records"
+      }
+    }
+  ]
+}

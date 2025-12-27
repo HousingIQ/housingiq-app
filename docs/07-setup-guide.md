@@ -4,6 +4,7 @@
 
 - Node.js 18+
 - Docker & Docker Compose
+- Python 3.11+ (with Conda recommended)
 - Google Cloud account (for OAuth)
 - Git
 
@@ -20,42 +21,51 @@ flowchart LR
 
 ## Step-by-Step Setup
 
-### 1. Navigate to Project
+### 1. Clone and Navigate
 
 ```bash
-cd housingiq-app/webapp
+git clone <your-repo-url>
+cd housingiq
 ```
 
-### 2. Install Dependencies
+### 2. Start PostgreSQL
 
 ```bash
-npm install
+cd housingiq-app
+make up
 ```
 
-### 3. Start PostgreSQL
-
-```bash
-docker compose up -d
-```
-
-This starts PostgreSQL on port **5432**.
+This starts:
+- **PostgreSQL** on port `5432`
+- **pgweb** (database UI) on `http://localhost:8081`
 
 Verify it's running:
 ```bash
 docker compose ps
-# Should show: housingiq-postgres running
+# Should show: housingiq-db and housingiq-pgweb running
+```
+
+### 3. Set Up the Webapp
+
+```bash
+cd webapp
+npm install
 ```
 
 ### 4. Configure Environment Variables
 
-The `.env.local` file should already exist. Verify it has:
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local`:
 
 ```bash
-# Database - Local Docker Postgres
-DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
+# Database
+DATABASE_URL=postgresql://housingiq:housingiq@localhost:5432/housingiq
 
 # NextAuth.js
-NEXTAUTH_SECRET=dev-secret-change-in-production-abc123xyz
+NEXTAUTH_SECRET=your-secret-key-here
 NEXTAUTH_URL=http://localhost:3000
 
 # Google OAuth
@@ -110,20 +120,58 @@ npm run dev
 
 Visit http://localhost:3000
 
-```mermaid
-flowchart LR
-    subgraph Pages
-        LP[Landing Page<br/>localhost:3000]
-        LG[Login<br/>localhost:3000/login]
-        DB[Dashboard<br/>localhost:3000/dashboard]
-    end
+## Setting Up the Data Platform
 
-    LP --> LG --> DB
+### 1. Create Conda Environment
+
+```bash
+conda create -n housingiq python=3.11 -y
+conda activate housingiq
+```
+
+### 2. Install Data Platform
+
+```bash
+# From housingiq-app root
+cd data-platform
+pip install -e ".[dev]"
+```
+
+### 3. Install dbt Packages
+
+```bash
+cd dbt
+dbt deps
+cd ..
+```
+
+### 4. Start Dagster UI
+
+```bash
+make dagster
+```
+
+Visit http://localhost:3000 (Dagster UI)
+
+> **Note**: Stop the webapp first if it's running on port 3000, or run Dagster on a different port.
+
+### 5. Run the Data Pipeline
+
+**Option A: Using Dagster UI**
+1. Open http://localhost:3000
+2. Navigate to Assets
+3. Click "Materialize all"
+
+**Option B: Using Command Line**
+```bash
+make download      # Download Zillow data
+make dbt-run       # Run dbt transformations
 ```
 
 ## Verification Checklist
 
-- [ ] Docker container running (`docker compose ps`)
+### Webapp
+- [ ] Docker containers running (`docker compose ps`)
 - [ ] Database accessible (`npm run db:studio`)
 - [ ] Environment variables set (`.env.local`)
 - [ ] Google OAuth configured
@@ -132,22 +180,28 @@ flowchart LR
 - [ ] Google sign-in works
 - [ ] Dashboard accessible after login
 
+### Data Platform
+- [ ] Conda environment activated
+- [ ] Python packages installed
+- [ ] dbt packages installed
+- [ ] Dagster UI loads
+- [ ] Assets visible in Dagster
+
 ## Common Issues
 
 ### Port 5432 Already in Use
 
-If you need to change the port:
+```bash
+# Find what's using the port
+lsof -i :5432
 
-1. Edit `docker-compose.yml`:
-   ```yaml
-   ports:
-     - "5432:5432"  # Change 5432 to another port
-   ```
+# Or change port in docker-compose.yml
+ports:
+  - "5433:5432"  # Use 5433 instead
 
-2. Update `DATABASE_URL` in `.env.local`:
-   ```
-   DATABASE_URL=postgresql://housingiq:housingiq_dev@localhost:5432/housingiq
-   ```
+# Update DATABASE_URL accordingly
+DATABASE_URL=postgresql://housingiq:housingiq@localhost:5433/housingiq
+```
 
 ### Database Connection Error
 
@@ -169,12 +223,16 @@ Verify:
 2. Client ID and Secret are copied correctly (no extra spaces)
 3. OAuth consent screen is configured
 
-### Hydration Errors
+### dbt Connection Error
 
-If you see "Hydration failed" errors, ensure:
-1. No `Math.random()` in components (use seeded random)
-2. No `Date.now()` or locale-dependent formatting
-3. Restart dev server after fixes
+```bash
+# Test dbt connection
+cd data-platform/dbt
+dbt debug
+
+# Check profiles.yml has correct settings
+# Defaults should work with docker-compose setup
+```
 
 ## Database Management
 
@@ -186,23 +244,17 @@ npm run db:studio
 
 Opens web UI at https://local.drizzle.studio
 
-### Generate Migrations
+### View Database (pgweb)
 
-```bash
-npm run db:generate
-```
-
-### Apply Migrations
-
-```bash
-npm run db:migrate
-```
+Visit http://localhost:8081
 
 ### Reset Database
 
 ```bash
+cd housingiq-app
 docker compose down -v  # Remove volumes
 docker compose up -d    # Fresh start
+cd webapp
 npm run db:push         # Push schema
 ```
 
@@ -215,6 +267,8 @@ flowchart TD
         S2[npm install]
         S3[Configure .env.local]
         S4[npm run db:push]
+        S5[conda create -n housingiq]
+        S6[pip install data-platform]
     end
 
     subgraph Daily["Daily Development"]
@@ -225,17 +279,44 @@ flowchart TD
         D5[Commit changes]
     end
 
-    S1 --> S2 --> S3 --> S4
-    S4 --> D1
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
+    S6 --> D1
     D1 --> D2 --> D3 --> D4 --> D3
     D4 --> D5
 ```
 
+## Available Commands
+
+### From `housingiq-app/`
+
+```bash
+make help          # Show all commands
+make up            # Start PostgreSQL + pgweb
+make down          # Stop services
+make psql          # Connect to PostgreSQL
+make webapp        # Start Next.js dev server
+make dagster       # Start Dagster UI
+make dbt           # Run dbt build
+```
+
+### From `data-platform/`
+
+```bash
+make help          # Show all commands
+make setup         # Install dependencies + dbt packages
+make dagster       # Start Dagster UI
+make download      # Download Zillow data
+make dbt-run       # Run all dbt models
+make dbt-test      # Run dbt tests
+make test          # Run Python tests
+```
+
 ## Next Steps
 
-After basic setup:
+After setup:
 
-1. **Load Real Data**: See [Data Pipeline Documentation](./06-data-pipeline.md)
-2. **Customize UI**: Edit components in `src/components/ui/`
-3. **Add Features**: Extend dashboard in `src/app/dashboard/`
-4. **Deploy**: Configure Neon Postgres and Vercel/other hosting
+1. **Load Real Data**: Run the data pipeline in Dagster
+2. **Explore Data**: Use pgweb or dbt docs to browse
+3. **Customize UI**: Edit components in `webapp/src/components/`
+4. **Add Features**: Extend dashboard in `webapp/src/app/dashboard/`
+5. **Deploy**: Configure production PostgreSQL and hosting

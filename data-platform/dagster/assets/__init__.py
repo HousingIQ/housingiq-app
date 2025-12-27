@@ -1,14 +1,25 @@
-"""Dagster asset definitions."""
+"""
+Dagster Assets Package.
 
-from .ingestion import raw_zillow_manifest, raw_zillow_zhvi, raw_zillow_regions
-from .staging import stg_zillow_regions, stg_zillow_zhvi
-from .dbt import all_dbt_assets
+Software-defined assets for the HousingIQ data platform.
+"""
+
+from .database import raw_zhvi_regions, raw_zhvi_values, raw_zori_values
+from .zillow import (
+    zillow_manifest,
+    zillow_raw_files,
+    zillow_zhvi_transformed,
+    zillow_zori_transformed,
+)
 
 __all__ = [
-    "raw_zillow_manifest",
-    "raw_zillow_zhvi",
-    "raw_zillow_regions",
-    "stg_zillow_regions",
-    "stg_zillow_zhvi",
-    "all_dbt_assets",
+    # Zillow ingestion assets
+    "zillow_manifest",
+    "zillow_raw_files",
+    "zillow_zhvi_transformed",
+    "zillow_zori_transformed",
+    # Database loading assets
+    "raw_zhvi_regions",
+    "raw_zhvi_values",
+    "raw_zori_values",
 ]
