@@ -20,10 +20,10 @@ dbt-deps:  ## Install dbt packages
 # =============================================================================
 
 dagster:  ## Start Dagster webserver
-	dagster dev -m dagster.definitions
+	dagster dev -m housingiq_dagster.definitions
 
 dagster-materialize:  ## Materialize all assets
-	dagster asset materialize --select "*" -m dagster.definitions
+	dagster asset materialize --select "*" -m housingiq_dagster.definitions
 
 # =============================================================================
 # dbt
@@ -87,7 +87,7 @@ test:  ## Run pytest
 	pytest tests/ -v
 
 test-cov:  ## Run pytest with coverage
-	pytest tests/ -v --cov=ingestion --cov=dagster --cov-report=html
+	pytest tests/ -v --cov=ingestion --cov=housingiq_dagster --cov-report=html
 
 # =============================================================================
 # Code Quality
@@ -103,7 +103,7 @@ format:  ## Format code
 	ruff format .
 
 typecheck:  ## Run type checker
-	mypy ingestion dagster
+	mypy ingestion housingiq_dagster
 
 # =============================================================================
 # Cleanup

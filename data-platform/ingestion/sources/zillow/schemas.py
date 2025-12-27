@@ -7,7 +7,7 @@ of the ingestion pipeline.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date as DateType, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -99,7 +99,7 @@ class ZHVIValue(BaseModel):
     """Single ZHVI (Zillow Home Value Index) observation."""
 
     region_id: str = Field(description="Reference to region")
-    date: date = Field(description="Observation date")
+    date: DateType = Field(description="Observation date")
     value: float = Field(description="Home value in USD")
     geography_level: GeographyLevel
     home_type: HomeType
@@ -114,7 +114,7 @@ class ZORIValue(BaseModel):
     """Single ZORI (Zillow Observed Rent Index) observation."""
 
     region_id: str = Field(description="Reference to region")
-    date: date = Field(description="Observation date")
+    date: DateType = Field(description="Observation date")
     value: float = Field(description="Rent value in USD")
     geography_level: GeographyLevel
     home_type: HomeType
@@ -146,7 +146,7 @@ class RawZillowRecord(BaseModel):
     size_rank: int | None = None
 
     # Value fields
-    date: date
+    date: DateType
     value: float | None = None
 
     # Metadata from filename

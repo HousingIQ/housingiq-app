@@ -30,6 +30,16 @@ def get_postgres_connection_string() -> str:
     )
 
 
+def ensure_raw_schema() -> None:
+    """Create raw schema if it doesn't exist."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(get_postgres_connection_string())
+    with engine.connect() as conn:
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw"))
+        conn.commit()
+
+
 @asset(
     group_name="database",
     description="Load ZHVI regions to PostgreSQL raw schema",
@@ -50,10 +60,11 @@ def raw_zhvi_regions(context: AssetExecutionContext) -> MaterializeResult:
 
     df = pl.read_parquet(regions_path)
 
-    # Load to PostgreSQL
+    # Ensure raw schema exists and load to PostgreSQL
+    ensure_raw_schema()
     conn_str = get_postgres_connection_string()
     df.write_database(
-        table_name="zillow_regions",
+        table_name="raw.zillow_regions",
         connection=conn_str,
         if_table_exists="replace",
         engine="adbc",
@@ -89,10 +100,11 @@ def raw_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
 
     df = pl.read_parquet(values_path)
 
-    # Load to PostgreSQL
+    # Ensure raw schema exists and load to PostgreSQL
+    ensure_raw_schema()
     conn_str = get_postgres_connection_string()
     df.write_database(
-        table_name="zillow_zhvi_values",
+        table_name="raw.zillow_zhvi_values",
         connection=conn_str,
         if_table_exists="replace",
         engine="adbc",
@@ -130,10 +142,11 @@ def raw_zori_values(context: AssetExecutionContext) -> MaterializeResult:
 
     df = pl.read_parquet(values_path)
 
-    # Load to PostgreSQL
+    # Ensure raw schema exists and load to PostgreSQL
+    ensure_raw_schema()
     conn_str = get_postgres_connection_string()
     df.write_database(
-        table_name="zillow_zori_values",
+        table_name="raw.zillow_zori_values",
         connection=conn_str,
         if_table_exists="replace",
         engine="adbc",
