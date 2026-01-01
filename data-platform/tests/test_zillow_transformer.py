@@ -5,12 +5,9 @@ Tests for Zillow data transformer.
 from pathlib import Path
 
 import polars as pl
-import pytest
 
 from ingestion.sources.zillow.transformer import (
-    FileMetadata,
     ZillowTransformer,
-    transform_zillow_category,
 )
 
 

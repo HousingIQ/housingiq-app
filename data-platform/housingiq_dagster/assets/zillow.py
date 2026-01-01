@@ -6,7 +6,6 @@ Software-defined assets for Zillow data ingestion and transformation.
 
 from pathlib import Path
 
-import polars as pl
 from dagster import (
     AssetExecutionContext,
     AssetKey,
@@ -21,7 +20,6 @@ from ingestion.sources.zillow import (
     ZillowTransformer,
 )
 from ingestion.sources.zillow.config import DEFAULT_CATEGORIES
-
 
 # Configuration
 DATA_DIR = Path("data")

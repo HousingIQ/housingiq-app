@@ -1,7 +1,7 @@
 [project]
 name = "housingiq-data-platform"
 version = "0.1.0"
-description = "HousingIQ Data Platform - dbt, Dagster, Great Expectations"
+description = "HousingIQ Data Platform - Dagster, Polars, Great Expectations"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
@@ -11,16 +11,11 @@ dependencies = [
     "dagster>=1.6.0",
     "dagster-webserver>=1.6.0",
     "dagster-postgres>=0.22.0",
-    "dagster-dbt>=0.22.0",
-
-    # Transformations
-    "dbt-core>=1.7.0",
-    "dbt-postgres>=1.7.0",
 
     # Data Quality
     "great-expectations>=0.18.0",
 
-    # Data Processing
+    # Data Processing (Polars replaces dbt for transformations)
     "polars>=0.20.0",
     "pyarrow>=14.0.0",
 

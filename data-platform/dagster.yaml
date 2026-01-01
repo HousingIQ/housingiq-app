@@ -1,0 +1,23 @@
+# Dagster instance configuration
+# This file configures persistent storage for Dagster
+
+# Use local SQLite for run storage and event log
+storage:
+  sqlite:
+    base_dir: .dagster/storage
+
+# Local compute log storage
+compute_logs:
+  module: dagster.core.storage.local_compute_log_manager
+  class: LocalComputeLogManager
+  config:
+    base_dir: .dagster/compute_logs
+
+# Local directory for schedule/sensor state
+scheduler:
+  module: dagster.core.scheduler
+  class: DagsterDaemonScheduler
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: DefaultRunCoordinator

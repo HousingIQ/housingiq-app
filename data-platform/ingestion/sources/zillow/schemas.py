@@ -7,11 +7,11 @@ of the ingestion pipeline.
 
 from __future__ import annotations
 
-from datetime import date as DateType, datetime
+from datetime import date as DateType
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
-
 
 # =============================================================================
 # Link/Manifest Schemas

@@ -4,9 +4,6 @@ Tests for Zillow URL scraper.
 
 from pathlib import Path
 
-import pytest
-
-from ingestion.sources.zillow.config import DEFAULT_CATEGORIES, URL_PATTERNS
 from ingestion.sources.zillow.scraper import ZillowScraper, scrape_zillow_urls
 
 

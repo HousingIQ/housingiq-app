@@ -3,7 +3,6 @@ Pytest configuration and fixtures for data platform tests.
 """
 
 from pathlib import Path
-from typing import Generator
 
 import polars as pl
 import pytest

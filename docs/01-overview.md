@@ -9,7 +9,7 @@ HousingIQ is a housing analytics web application that provides insights into US 
 1. **Visualize Housing Data**: Display Zillow Home Value Index (ZHVI) trends over time
 2. **Geographic Analysis**: Compare housing values across states, metros, cities, and zip codes
 3. **User Authentication**: Secure access via Google OAuth
-4. **Modern Data Platform**: Automated ETL using Dagster, dbt, and Great Expectations
+4. **Modern Data Platform**: Automated ETL using Dagster, Polars, and Great Expectations
 
 ## High-Level Architecture
 
@@ -21,7 +21,7 @@ graph TB
 
     subgraph "Data Platform"
         DAG[Dagster Orchestration]
-        DBT[dbt Transformations]
+        POL[Polars Transformations]
         GX[Great Expectations]
     end
 
@@ -43,8 +43,8 @@ graph TB
 
     Z --> DAG
     DAG --> GX
-    GX --> DBT
-    DBT --> DB
+    GX --> POL
+    POL --> DB
     DB --> API
     API --> DASH
     API --> COMP
@@ -65,9 +65,8 @@ graph TB
 | Authentication | NextAuth.js | 5.0 (beta) |
 | Charts | Recharts | 3.x |
 | Orchestration | Dagster | 1.6.x |
-| Transformations | dbt | 1.7.x |
+| Transformations | Polars | 0.20.x |
 | Data Quality | Great Expectations | 0.18.x |
-| Data Processing | Polars (Python) | 0.20.x |
 
 ## Project Structure
 
@@ -88,9 +87,8 @@ housingiq-app/                     # Monorepo root
 │   └── .env.local                # Environment variables
 │
 ├── data-platform/                 # Data engineering stack
+│   ├── housingiq_dagster/        # Dagster assets & orchestration
 │   ├── ingestion/                # Python data extraction
-│   ├── dagster/                  # Orchestration
-│   ├── dbt/                      # SQL transformations
 │   ├── great_expectations/       # Data quality
 │   └── tests/                    # Python tests
 │
@@ -110,7 +108,7 @@ housingiq-app/                     # Monorepo root
 - [x] State comparison functionality
 - [x] Drizzle ORM database schema
 - [x] Docker Compose for local PostgreSQL
-- [x] Dagster + dbt data platform
+- [x] Dagster + Polars data platform
 - [x] Zillow data ingestion pipeline
 - [x] Great Expectations validation
 

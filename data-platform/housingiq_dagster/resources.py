@@ -9,7 +9,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from dagster import ConfigurableResource
-from dagster_dbt import DbtCliResource
 from pydantic import Field
 
 
@@ -80,15 +79,6 @@ class DataDirectoryResource(ConfigurableResource):
         self.processed_dir.mkdir(parents=True, exist_ok=True)
 
 
-# dbt resource configuration
-DBT_PROJECT_DIR = Path(__file__).parent.parent / "dbt"
-
-dbt_resource = DbtCliResource(
-    project_dir=str(DBT_PROJECT_DIR),
-    profiles_dir=str(DBT_PROJECT_DIR),
-)
-
-
 # Default resource configuration
 default_resources = {
     "postgres": PostgresResource(
@@ -97,5 +87,4 @@ default_resources = {
     "data_dirs": DataDirectoryResource(
         base_dir=os.getenv("DATA_DIR", "data"),
     ),
-    "dbt": dbt_resource,
 }

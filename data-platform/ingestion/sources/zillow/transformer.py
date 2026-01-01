@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -339,9 +338,7 @@ class ZillowTransformer:
             all_columns.update(df.columns)
             for col in df.columns:
                 dtype = df[col].dtype
-                if col not in column_types and dtype != pl.Null:
-                    column_types[col] = dtype
-                elif col in column_types and dtype != pl.Null and column_types[col] == pl.Null:
+                if col not in column_types and dtype != pl.Null or col in column_types and dtype != pl.Null and column_types[col] == pl.Null:
                     column_types[col] = dtype
 
         # Default types for unknown columns

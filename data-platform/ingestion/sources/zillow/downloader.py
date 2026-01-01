@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -145,7 +145,7 @@ class ZillowDownloader:
                             filename=filename,
                             category=category,
                             status="failed",
-                            error=f"HTTP 404: Not found",
+                            error="HTTP 404: Not found",
                         )
                     # Retry on other HTTP errors
                     if attempt < self.retry_attempts - 1:

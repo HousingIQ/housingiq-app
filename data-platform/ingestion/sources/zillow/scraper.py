@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from .config import BASE_CDN_URL, URL_PATTERNS
 
 if TYPE_CHECKING:
-    from .schemas import DownloadManifest, LinkInfo
+    pass
 
 
 class ZillowScraper:

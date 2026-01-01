@@ -1,4 +1,4 @@
-.PHONY: help setup install dagster dbt-run dbt-test dbt-docs gx test lint clean
+.PHONY: help setup install dagster gx test lint clean
 
 help:  ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -7,51 +7,20 @@ help:  ## Show this help
 # Setup
 # =============================================================================
 
-setup: install dbt-deps  ## Full setup: install dependencies and dbt packages
+setup: install  ## Full setup: install dependencies
 
 install:  ## Install Python dependencies
 	pip install -e ".[dev]"
-
-dbt-deps:  ## Install dbt packages
-	cd dbt && dbt deps
 
 # =============================================================================
 # Dagster
 # =============================================================================
 
 dagster:  ## Start Dagster webserver
-	dagster dev -m housingiq_dagster.definitions
+	DAGSTER_HOME=$(PWD) dagster dev -m housingiq_dagster.definitions
 
 dagster-materialize:  ## Materialize all assets
-	dagster asset materialize --select "*" -m housingiq_dagster.definitions
-
-# =============================================================================
-# dbt
-# =============================================================================
-
-dbt-run:  ## Run dbt models
-	cd dbt && dbt run
-
-dbt-run-staging:  ## Run staging models only
-	cd dbt && dbt run --select staging.*
-
-dbt-run-marts:  ## Run mart models only
-	cd dbt && dbt run --select marts.*
-
-dbt-run-app:  ## Run app models only
-	cd dbt && dbt run --select app.*
-
-dbt-test:  ## Run dbt tests
-	cd dbt && dbt test
-
-dbt-docs:  ## Generate and serve dbt docs
-	cd dbt && dbt docs generate && dbt docs serve
-
-dbt-compile:  ## Compile dbt project
-	cd dbt && dbt compile
-
-dbt-clean:  ## Clean dbt artifacts
-	cd dbt && dbt clean
+	DAGSTER_HOME=$(PWD) dagster asset materialize --select "*" -m housingiq_dagster.definitions
 
 # =============================================================================
 # Great Expectations
@@ -114,8 +83,8 @@ clean:  ## Clean all generated files
 	rm -rf .pytest_cache/
 	rm -rf htmlcov/
 	rm -rf .ruff_cache/
+	rm -rf .dagster/
 	find . -type d -name "__pycache__" -exec rm -rf {} +
-	cd dbt && dbt clean
 
 clean-data:  ## Clean downloaded data only
 	rm -rf data/
