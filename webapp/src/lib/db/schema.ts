@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgSchema,
   serial,
   varchar,
   text,
@@ -8,9 +9,11 @@ import {
   real,
   date,
   boolean,
-  index,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+
+// App schema for data platform tables
+const appSchema = pgSchema('app');
 
 // Users table for authentication (Google OAuth and email/password)
 export const users = pgTable('users', {
@@ -24,51 +27,91 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-// Regions dimension table (geographic areas)
-export const regions = pgTable('regions', {
-  id: serial('id').primaryKey(),
-  regionId: varchar('region_id', { length: 100 }).notNull().unique(),
-  regionIdOriginal: integer('region_id_original'),
-  regionName: varchar('region_name', { length: 255 }).notNull(),
+// Regions dimension table (geographic areas) - loaded by data platform
+export const regions = appSchema.table('regions', {
+  regionId: varchar('region_id', { length: 100 }).primaryKey(),
+  regionName: varchar('region_name', { length: 255 }),
+  displayName: varchar('display_name', { length: 500 }),
+  geographyLevel: varchar('geography_level', { length: 50 }),
   state: varchar('state', { length: 2 }),
   stateName: varchar('state_name', { length: 100 }),
   city: varchar('city', { length: 255 }),
   county: varchar('county', { length: 255 }),
   metro: varchar('metro', { length: 255 }),
-  geographyLevel: varchar('geography_level', { length: 50 }).notNull(),
-  regionType: varchar('region_type', { length: 50 }),
   sizeRank: integer('size_rank'),
-  stateCodeFips: integer('state_code_fips'),
-  municipalCodeFips: integer('municipal_code_fips'),
-}, (table) => [
-  index('idx_regions_geography_level').on(table.geographyLevel),
-  index('idx_regions_state').on(table.state),
-  index('idx_regions_region_id').on(table.regionId),
-]);
+});
 
-// ZHVI Values fact table (home values over time)
-export const zhviValues = pgTable('zhvi_values', {
-  id: serial('id').primaryKey(),
-  regionId: varchar('region_id', { length: 100 }).notNull(),
-  date: date('date').notNull(),
+// ZHVI Values fact table (home values over time) - loaded by data platform
+export const zhviValues = appSchema.table('zhvi_values', {
+  regionId: varchar('region_id', { length: 100 }),
+  date: date('date'),
   value: real('value'),
-  geographyLevel: varchar('geography_level', { length: 50 }).notNull(),
-  homeType: varchar('home_type', { length: 50 }).notNull(),
+  geographyLevel: varchar('geography_level', { length: 50 }),
+  homeType: varchar('home_type', { length: 50 }),
   tier: varchar('tier', { length: 50 }),
   bedrooms: integer('bedrooms'),
-  smoothed: boolean('smoothed').default(false),
-  seasonallyAdjusted: boolean('seasonally_adjusted').default(false),
-  frequency: varchar('frequency', { length: 20 }).default('monthly'),
-}, (table) => [
-  index('idx_zhvi_region_id').on(table.regionId),
-  index('idx_zhvi_date').on(table.date),
-  index('idx_zhvi_geography_level').on(table.geographyLevel),
-  index('idx_zhvi_region_date').on(table.regionId, table.date),
-]);
+  smoothed: boolean('smoothed'),
+  seasonallyAdjusted: boolean('seasonally_adjusted'),
+  frequency: varchar('frequency', { length: 20 }),
+  momChangePct: real('mom_change_pct'),
+  yoyChangePct: real('yoy_change_pct'),
+});
+
+// ZORI Values fact table (rent values over time) - loaded by data platform
+export const zoriValues = appSchema.table('zori_values', {
+  regionId: varchar('region_id', { length: 100 }),
+  date: date('date'),
+  value: real('value'),
+  geographyLevel: varchar('geography_level', { length: 50 }),
+  homeType: varchar('home_type', { length: 50 }),
+  smoothed: boolean('smoothed'),
+  seasonallyAdjusted: boolean('seasonally_adjusted'),
+  frequency: varchar('frequency', { length: 20 }),
+  momChangePct: real('mom_change_pct'),
+  yoyChangePct: real('yoy_change_pct'),
+});
+
+// Market Summary table (pre-computed aggregates for dashboard) - loaded by data platform
+export const marketSummary = appSchema.table('market_summary', {
+  regionId: varchar('region_id', { length: 100 }).primaryKey(),
+  regionName: varchar('region_name', { length: 255 }),
+  displayName: varchar('display_name', { length: 500 }),
+  geographyLevel: varchar('geography_level', { length: 50 }),
+  stateCode: varchar('state_code', { length: 2 }),
+  stateName: varchar('state_name', { length: 100 }),
+  metro: varchar('metro', { length: 255 }),
+  sizeRank: integer('size_rank'),
+  currentHomeValue: real('current_home_value'),
+  homeValueYoyPct: real('home_value_yoy_pct'),
+  homeValueMomPct: real('home_value_mom_pct'),
+  homeValueDate: date('home_value_date'),
+  currentRentValue: real('current_rent_value'),
+  rentYoyPct: real('rent_yoy_pct'),
+  rentMomPct: real('rent_mom_pct'),
+  rentValueDate: date('rent_value_date'),
+  priceToRentRatio: real('price_to_rent_ratio'),
+  grossRentYieldPct: real('gross_rent_yield_pct'),
+  marketClassification: varchar('market_classification', { length: 20 }),
+});
 
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   zhviValues: many(zhviValues),
+  zoriValues: many(zoriValues),
+}));
+
+export const zhviValuesRelations = relations(zhviValues, ({ one }) => ({
+  region: one(regions, {
+    fields: [zhviValues.regionId],
+    references: [regions.regionId],
+  }),
+}));
+
+export const zoriValuesRelations = relations(zoriValues, ({ one }) => ({
+  region: one(regions, {
+    fields: [zoriValues.regionId],
+    references: [regions.regionId],
+  }),
 }));
 
 // Type exports for use in application
@@ -78,3 +121,6 @@ export type Region = typeof regions.$inferSelect;
 export type NewRegion = typeof regions.$inferInsert;
 export type ZhviValue = typeof zhviValues.$inferSelect;
 export type NewZhviValue = typeof zhviValues.$inferInsert;
+export type ZoriValue = typeof zoriValues.$inferSelect;
+export type NewZoriValue = typeof zoriValues.$inferInsert;
+export type MarketSummary = typeof marketSummary.$inferSelect;
