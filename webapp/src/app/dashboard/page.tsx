@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { LocationSearchBar } from '@/components/LocationSearchBar';
 import { MarketOverviewCard } from '@/components/MarketOverviewCard';
 import { PriceTrendChart } from '@/components/PriceTrendChart';
@@ -32,6 +33,26 @@ interface TrendData {
   momChangePct: number | null;
 }
 
+// Filter options
+const HOME_TYPES = [
+  { value: 'All Homes', label: 'All Homes' },
+  { value: 'Single Family', label: 'Single Family' },
+  { value: 'Condo', label: 'Condo' },
+  { value: 'Multi Family', label: 'Multi Family' },
+];
+
+const TIERS = [
+  { value: 'Bottom-Tier', label: 'Bottom' },
+  { value: 'Mid-Tier', label: 'Mid' },
+  { value: 'Top-Tier', label: 'Top' },
+];
+
+const TIME_RANGES = [
+  { value: 12, label: '1Y' },
+  { value: 36, label: '3Y' },
+  { value: 60, label: '5Y' },
+];
+
 export default function DashboardPage() {
   const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [marketData, setMarketData] = useState<MarketData | null>(null);
@@ -39,11 +60,15 @@ export default function DashboardPage() {
   const [isLoadingMarket, setIsLoadingMarket] = useState(false);
   const [isLoadingTrends, setIsLoadingTrends] = useState(false);
 
+  // Filter states
+  const [homeType, setHomeType] = useState('All Homes');
+  const [tier, setTier] = useState('Mid-Tier');
+  const [months, setMonths] = useState(12);
+
   // Fetch market overview when region changes
   useEffect(() => {
     if (!selectedRegion) {
       setMarketData(null);
-      setTrendData([]);
       return;
     }
 
@@ -62,10 +87,27 @@ export default function DashboardPage() {
       }
     };
 
+    fetchMarketData();
+  }, [selectedRegion]);
+
+  // Fetch trend data when region or filters change
+  useEffect(() => {
+    if (!selectedRegion) {
+      setTrendData([]);
+      return;
+    }
+
     const fetchTrendData = async () => {
       setIsLoadingTrends(true);
       try {
-        const response = await fetch(`/api/market/${selectedRegion.regionId}/trends`);
+        const params = new URLSearchParams({
+          homeType,
+          tier,
+          months: months.toString(),
+        });
+        const response = await fetch(
+          `/api/market/${selectedRegion.regionId}/trends?${params}`
+        );
         const result = await response.json();
         if (result.data) {
           setTrendData(result.data);
@@ -77,9 +119,8 @@ export default function DashboardPage() {
       }
     };
 
-    fetchMarketData();
     fetchTrendData();
-  }, [selectedRegion]);
+  }, [selectedRegion, homeType, tier, months]);
 
   const handleRegionSelect = (region: {
     regionId: string;
@@ -118,11 +159,72 @@ export default function DashboardPage() {
       {/* Market Overview Card */}
       <MarketOverviewCard data={marketData} isLoading={isLoadingMarket} />
 
+      {/* Filters */}
+      {selectedRegion && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-wrap items-center gap-6">
+              {/* Home Type Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Home Type</Label>
+                <div className="flex gap-1">
+                  {HOME_TYPES.map((type) => (
+                    <Button
+                      key={type.value}
+                      variant={homeType === type.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setHomeType(type.value)}
+                    >
+                      {type.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tier Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Price Tier</Label>
+                <div className="flex gap-1">
+                  {TIERS.map((t) => (
+                    <Button
+                      key={t.value}
+                      variant={tier === t.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setTier(t.value)}
+                    >
+                      {t.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Time Range Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Time Range</Label>
+                <div className="flex gap-1">
+                  {TIME_RANGES.map((range) => (
+                    <Button
+                      key={range.value}
+                      variant={months === range.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setMonths(range.value)}
+                    >
+                      {range.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Price Trend Chart */}
       <PriceTrendChart
         data={trendData}
         regionName={selectedRegion?.regionName || ''}
         isLoading={isLoadingTrends}
+        subtitle={selectedRegion ? `${homeType} • ${tier} • Last ${months} months` : undefined}
       />
 
       {/* Info Card */}

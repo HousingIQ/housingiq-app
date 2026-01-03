@@ -172,6 +172,10 @@ Data sourced from [Zillow Research](https://www.zillow.com/research/data/):
 - **ZHVI** - Zillow Home Value Index (home values)
 - **ZORI** - Zillow Observed Rent Index (rents)
 
+## Dev account
+Email: test@housingiq.com
+Password: TestPassword123!
+
 ## License
 
 MIT

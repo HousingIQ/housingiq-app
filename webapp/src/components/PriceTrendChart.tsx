@@ -30,6 +30,7 @@ interface PriceTrendChartProps {
   data: TrendDataPoint[];
   regionName: string;
   isLoading?: boolean;
+  subtitle?: string;
 }
 
 // Chart colors matching shadcn neutral theme
@@ -97,6 +98,7 @@ export function PriceTrendChart({
   data,
   regionName,
   isLoading,
+  subtitle,
 }: PriceTrendChartProps) {
 
   if (isLoading) {
@@ -143,9 +145,13 @@ export function PriceTrendChart({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>12-Month Price Trend</CardTitle>
+        <CardTitle>Price Trend</CardTitle>
         <CardDescription>
-          Home values (ZHVI) and rent prices (ZORI) for {regionName}
+          {subtitle ? (
+            <span>{subtitle} for {regionName}</span>
+          ) : (
+            <span>Home values (ZHVI) and rent prices (ZORI) for {regionName}</span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

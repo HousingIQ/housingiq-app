@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { auth, signOut } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, TrendingUp, BarChart3, LogOut, Menu } from 'lucide-react';
+import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map } from 'lucide-react';
 
 export default async function DashboardLayout({
   children,
@@ -37,7 +37,7 @@ export default async function DashboardLayout({
                   className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <TrendingUp className="h-5 w-5" />
-                  Home Values
+                  Dashboard
                 </Link>
               </li>
               <li>
@@ -46,7 +46,34 @@ export default async function DashboardLayout({
                   className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
                 >
                   <BarChart3 className="h-5 w-5" />
-                  Compare Regions
+                  Compare
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/dashboard/rankings"
+                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Trophy className="h-5 w-5" />
+                  Rankings
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/dashboard/calculator"
+                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Calculator className="h-5 w-5" />
+                  Calculator
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/dashboard/map"
+                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Map className="h-5 w-5" />
+                  Map
                 </Link>
               </li>
             </ul>

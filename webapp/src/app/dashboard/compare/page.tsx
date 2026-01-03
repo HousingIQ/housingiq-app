@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { X } from 'lucide-react';
 import {
   LineChart,
@@ -27,74 +28,31 @@ const availableStates = [
   { id: 'NC', name: 'North Carolina', color: '#65a30d' },
 ];
 
-// Seeded random for consistent SSR/client rendering
-function seededRandom(seed: number) {
-  const x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
+interface StateStats {
+  regionId: string;
+  stateCode: string;
+  stateName: string | null;
+  currentHomeValue: number | null;
+  homeValueYoyPct: number | null;
+  color: string;
 }
 
-// Generate sample data for a state with deterministic values
-function generateStateData(baseValue: number, growthRate: number, seed: number) {
-  const data = [];
-  let value = baseValue;
-  let seedCounter = seed;
-
-  for (let year = 2015; year <= 2024; year++) {
-    for (let month = 1; month <= 12; month++) {
-      if (year === 2024 && month > 10) break;
-
-      const variation = seededRandom(seedCounter++) * growthRate;
-      const monthlyGrowth = 0.003 + variation;
-      value = value * (1 + monthlyGrowth);
-
-      data.push({
-        date: `${year}-${month.toString().padStart(2, '0')}`,
-        value: Math.round(value),
-      });
-    }
-  }
-  return data;
+interface TrendData {
+  date: string;
+  formattedDate: string;
+  [key: string]: string | number;
 }
 
-const stateDataMap: Record<string, number[]> = {
-  CA: generateStateData(450000, 0.002, 1).map(d => d.value),
-  TX: generateStateData(250000, 0.003, 100).map(d => d.value),
-  FL: generateStateData(280000, 0.004, 200).map(d => d.value),
-  NY: generateStateData(380000, 0.002, 300).map(d => d.value),
-  WA: generateStateData(420000, 0.003, 400).map(d => d.value),
-  CO: generateStateData(380000, 0.003, 500).map(d => d.value),
-  AZ: generateStateData(290000, 0.004, 600).map(d => d.value),
-  NC: generateStateData(260000, 0.003, 700).map(d => d.value),
-};
-
-// Create combined chart data
-function createChartData(selectedStates: string[]) {
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const dates = [];
-  for (let year = 2015; year <= 2024; year++) {
-    for (let month = 1; month <= 12; month++) {
-      if (year === 2024 && month > 10) break;
-      dates.push({
-        date: `${year}-${month.toString().padStart(2, '0')}`,
-        formattedDate: `${monthNames[month - 1]} ${year}`,
-      });
-    }
-  }
-
-  return dates.map((d, i) => {
-    const point: Record<string, string | number> = {
-      date: d.date,
-      formattedDate: d.formattedDate,
-    };
-    selectedStates.forEach(stateId => {
-      point[stateId] = stateDataMap[stateId]?.[i] || 0;
-    });
-    return point;
-  });
+interface CompareData {
+  states: Record<string, StateStats>;
+  trends: TrendData[];
 }
 
 export default function ComparePage() {
   const [selectedStates, setSelectedStates] = useState<string[]>(['CA', 'TX']);
+  const [data, setData] = useState<CompareData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addState = (stateId: string) => {
     if (selectedStates.length < 4 && !selectedStates.includes(stateId)) {
@@ -106,14 +64,46 @@ export default function ComparePage() {
     setSelectedStates(selectedStates.filter(s => s !== stateId));
   };
 
-  const chartData = createChartData(selectedStates);
+  // Fetch data when selected states change
+  useEffect(() => {
+    const fetchData = async () => {
+      if (selectedStates.length === 0) {
+        setData(null);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/market/compare?states=${selectedStates.join(',')}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to fetch data');
+        }
+
+        setData(result.data);
+      } catch (err) {
+        console.error('Failed to fetch compare data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedStates]);
 
   const getStateStats = (stateId: string) => {
-    const values = stateDataMap[stateId] || [];
-    const current = values[values.length - 1] || 0;
-    const yearAgo = values[values.length - 13] || current;
-    const yoyChange = ((current - yearAgo) / yearAgo) * 100;
-    return { current, yoyChange };
+    if (!data?.states[stateId]) {
+      return { current: 0, yoyChange: 0 };
+    }
+    const stats = data.states[stateId];
+    return {
+      current: stats.currentHomeValue || 0,
+      yoyChange: stats.homeValueYoyPct || 0,
+    };
   };
 
   return (
@@ -155,8 +145,34 @@ export default function ComparePage() {
         </CardContent>
       </Card>
 
+      {/* Error State */}
+      {error && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="py-6">
+            <p className="text-red-600 text-center">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Loading State for Stats */}
+      {loading && selectedStates.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {selectedStates.map((stateId) => (
+            <Card key={stateId}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-4 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       {/* Comparison Table */}
-      {selectedStates.length > 0 && (
+      {!loading && !error && selectedStates.length > 0 && data && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {selectedStates.map((stateId) => {
             const state = availableStates.find(s => s.id === stateId);
@@ -174,11 +190,13 @@ export default function ComparePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {formatCurrency(stats.current)}
+                    {stats.current > 0 ? formatCurrency(stats.current) : 'N/A'}
                   </div>
-                  <p className={`text-sm ${stats.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {stats.yoyChange >= 0 ? '+' : ''}{stats.yoyChange.toFixed(1)}% YoY
-                  </p>
+                  {stats.current > 0 && (
+                    <p className={`text-sm ${stats.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {stats.yoyChange >= 0 ? '+' : ''}{stats.yoyChange.toFixed(1)}% YoY
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -186,19 +204,32 @@ export default function ComparePage() {
         </div>
       )}
 
+      {/* Loading State for Chart */}
+      {loading && selectedStates.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Home Value Comparison</CardTitle>
+            <CardDescription>Loading data...</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-[400px] w-full" />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Comparison Chart */}
-      {selectedStates.length > 0 && (
+      {!loading && !error && selectedStates.length > 0 && data && data.trends.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Home Value Comparison</CardTitle>
             <CardDescription>
-              Zillow Home Value Index (ZHVI) comparison
+              Zillow Home Value Index (ZHVI) comparison - Last 10 years
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[400px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={data.trends}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis
                     dataKey="formattedDate"
