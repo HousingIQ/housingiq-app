@@ -365,3 +365,173 @@ def market_summary(context: AssetExecutionContext) -> MaterializeResult:
             ),
         }
     )
+
+
+@asset(
+    group_name="transforms",
+    description="Transform Inventory data with YoY/MoM calculations",
+    deps=["zillow_raw_files"],
+    compute_kind="polars",
+)
+def fct_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Fact table for for-sale inventory values with derived metrics.
+
+    Reads raw inventory CSV files and transforms them into a normalized format.
+    """
+    invt_dir = Path("data/invt_fs")
+
+    if not invt_dir.exists():
+        context.log.warning(f"Inventory directory not found: {invt_dir}")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    # Find monthly smoothed files
+    csv_files = list(invt_dir.glob("*_invt_fs_*_sm_month.csv"))
+    if not csv_files:
+        context.log.warning("No monthly smoothed inventory files found")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    context.log.info(f"Processing {len(csv_files)} inventory files...")
+
+    all_dfs = []
+
+    for file_path in csv_files:
+        context.log.info(f"Reading {file_path.name}...")
+
+        # Read CSV
+        df = pl.read_csv(file_path)
+
+        # Extract geography level from filename
+        filename = file_path.name
+        if filename.startswith("Metro_"):
+            geo_level = "Metro"
+        elif filename.startswith("State_"):
+            geo_level = "State"
+        elif filename.startswith("County_"):
+            geo_level = "County"
+        elif filename.startswith("City_"):
+            geo_level = "City"
+        elif filename.startswith("Zip_"):
+            geo_level = "Zip"
+        else:
+            geo_level = "Unknown"
+
+        # Determine home type from filename
+        if "_sfrcondo_" in filename:
+            home_type = "All Homes"
+        elif "_sfr_" in filename:
+            home_type = "Single Family"
+        elif "_condo_" in filename:
+            home_type = "Condo"
+        else:
+            home_type = "All Homes"
+
+        # Determine if smoothed
+        is_smoothed = "_sm_" in filename
+
+        # Get metadata columns
+        meta_cols = []
+        for col in ["RegionID", "SizeRank", "RegionName", "RegionType", "StateName"]:
+            if col in df.columns:
+                meta_cols.append(col)
+
+        # Get date columns (YYYY-MM-DD format)
+        date_cols = [c for c in df.columns if c not in meta_cols and c[0].isdigit()]
+
+        if not date_cols:
+            context.log.warning(f"No date columns found in {file_path.name}")
+            continue
+
+        # Melt to long format
+        melted = df.unpivot(
+            index=meta_cols,
+            on=date_cols,
+            variable_name="date",
+            value_name="inventory_count",
+        )
+
+        # Add metadata columns
+        melted = melted.with_columns([
+            pl.col("RegionID").cast(pl.Utf8).alias("region_id"),
+            pl.lit(geo_level).alias("geography_level"),
+            pl.lit(home_type).alias("home_type"),
+            pl.lit(is_smoothed).alias("smoothed"),
+            pl.lit("monthly").alias("frequency"),
+            pl.col("inventory_count").cast(pl.Int64),
+        ])
+
+        # Select final columns
+        final_cols = [
+            "region_id",
+            "date",
+            "inventory_count",
+            "geography_level",
+            "home_type",
+            "smoothed",
+            "frequency",
+        ]
+
+        all_dfs.append(melted.select(final_cols))
+
+    if not all_dfs:
+        context.log.warning("No data processed from inventory files")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    # Combine all dataframes
+    combined = pl.concat(all_dfs)
+
+    # Remove nulls and sort
+    combined = combined.filter(
+        pl.col("inventory_count").is_not_null()
+    ).sort(["region_id", "home_type", "date"])
+
+    # Calculate MoM and YoY changes
+    partition_cols = ["region_id", "home_type"]
+
+    df_transformed = (
+        combined
+        .with_columns([
+            pl.col("inventory_count")
+            .shift(1)
+            .over(partition_cols)
+            .alias("prev_month"),
+
+            pl.col("inventory_count")
+            .shift(12)
+            .over(partition_cols)
+            .alias("prev_year"),
+        ])
+        .with_columns([
+            (
+                (pl.col("inventory_count").cast(pl.Float64) - pl.col("prev_month").cast(pl.Float64))
+                / pl.col("prev_month").cast(pl.Float64)
+                * 100
+            ).round(2).alias("mom_change_pct"),
+
+            (
+                (pl.col("inventory_count").cast(pl.Float64) - pl.col("prev_year").cast(pl.Float64))
+                / pl.col("prev_year").cast(pl.Float64)
+                * 100
+            ).round(2).alias("yoy_change_pct"),
+        ])
+        .drop(["prev_month", "prev_year"])
+    )
+
+    # Save to parquet
+    output_path = PROCESSED_DIR / "fct_inventory_values.parquet"
+    df_transformed.write_parquet(output_path)
+
+    context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
+
+    return MaterializeResult(
+        metadata={
+            "row_count": MetadataValue.int(len(df_transformed)),
+            "columns": MetadataValue.json(df_transformed.columns),
+            "geography_levels": MetadataValue.json(
+                df_transformed["geography_level"].unique().to_list()
+            ),
+            "date_range": MetadataValue.text(
+                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
+            ),
+        }
+    )

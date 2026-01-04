@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { LocationSearchBar } from '@/components/LocationSearchBar';
 import { MarketOverviewCard } from '@/components/MarketOverviewCard';
 import { PriceTrendChart } from '@/components/PriceTrendChart';
+import { BedroomComparisonChart } from '@/components/BedroomComparisonChart';
+import { PropertyTypeAnalysis } from '@/components/PropertyTypeAnalysis';
+import { MarketHealthScore } from '@/components/MarketHealthScore';
 
 interface SelectedRegion {
   regionId: string;
@@ -31,6 +34,7 @@ interface TrendData {
   homeValue: number | null;
   rentValue: number | null;
   momChangePct: number | null;
+  priceToRentRatio: number | null;
 }
 
 // Filter options
@@ -147,11 +151,10 @@ export default function DashboardPage() {
       {/* Location Search */}
       <Card>
         <CardContent className="pt-6">
-          <Label className="mb-2">Select Location</Label>
+          <Label className="mb-3 block text-base font-medium">Select Location</Label>
           <LocationSearchBar
             onSelect={handleRegionSelect}
-            placeholder="Search for a metro area or state..."
-            className="max-w-xl"
+            className="max-w-2xl"
           />
         </CardContent>
       </Card>
@@ -226,6 +229,28 @@ export default function DashboardPage() {
         isLoading={isLoadingTrends}
         subtitle={selectedRegion ? `${homeType} • ${tier} • Last ${months} months` : undefined}
       />
+
+      {/* Market Health Score - Only show when region is selected and has data */}
+      {selectedRegion && marketData && (
+        <MarketHealthScore
+          homeValueYoyPct={marketData.homeValueYoyPct}
+          rentYoyPct={marketData.rentYoyPct}
+          priceToRentRatio={marketData.priceToRentRatio}
+          grossRentYieldPct={
+            marketData.currentRentValue && marketData.currentHomeValue
+              ? ((marketData.currentRentValue * 12) / marketData.currentHomeValue) * 100
+              : null
+          }
+        />
+      )}
+
+      {/* Advanced Analysis Section */}
+      {selectedRegion && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <BedroomComparisonChart regionId={selectedRegion.regionId} />
+          <PropertyTypeAnalysis regionId={selectedRegion.regionId} />
+        </div>
+      )}
 
       {/* Info Card */}
       <Card className="border-primary/20 bg-primary/5">

@@ -1,39 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { TrendingUp, TrendingDown, Minus, Home, DollarSign, BarChart3, SlidersHorizontal } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { formatCurrency, cn } from '@/lib/utils';
+import { RegionComparePicker, SelectedRegion } from '@/components/RegionComparePicker';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
-import { formatCurrency } from '@/lib/utils';
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from '@/components/ui/chart';
 
-const availableStates = [
-  { id: 'CA', name: 'California', color: '#2563eb' },
-  { id: 'TX', name: 'Texas', color: '#16a34a' },
-  { id: 'FL', name: 'Florida', color: '#dc2626' },
-  { id: 'NY', name: 'New York', color: '#9333ea' },
-  { id: 'WA', name: 'Washington', color: '#ea580c' },
-  { id: 'CO', name: 'Colorado', color: '#0891b2' },
-  { id: 'AZ', name: 'Arizona', color: '#db2777' },
-  { id: 'NC', name: 'North Carolina', color: '#65a30d' },
-];
-
-interface StateStats {
+interface RegionStats {
   regionId: string;
-  stateCode: string;
+  regionName: string | null;
+  displayName: string | null;
+  geographyLevel: string | null;
+  state: string | null;
   stateName: string | null;
+  city: string | null;
+  county: string | null;
+  metro: string | null;
   currentHomeValue: number | null;
   homeValueYoyPct: number | null;
+  homeValueMomPct: number | null;
+  currentRentValue: number | null;
+  rentYoyPct: number | null;
+  priceToRentRatio: number | null;
+  marketClassification: string | null;
   color: string;
 }
 
@@ -44,30 +46,84 @@ interface TrendData {
 }
 
 interface CompareData {
-  states: Record<string, StateStats>;
-  trends: TrendData[];
+  regions: Record<string, RegionStats>;
+  homeValueTrends: TrendData[];
+  rentTrends: TrendData[];
+  priceToRentTrends: TrendData[];
+  filters: {
+    homeType: string;
+    tier: string;
+    months: number;
+  };
 }
 
+// Filter options
+const HOME_TYPES = [
+  { value: 'All Homes', label: 'All Homes' },
+  { value: 'Single Family', label: 'Single Family' },
+  { value: 'Condo', label: 'Condo' },
+  { value: 'Multi Family', label: 'Multi Family' },
+];
+
+const TIERS = [
+  { value: 'Bottom-Tier', label: 'Bottom Tier' },
+  { value: 'Mid-Tier', label: 'Mid Tier' },
+  { value: 'Top-Tier', label: 'Top Tier' },
+];
+
+const TIME_RANGES = [
+  { value: 12, label: '1 Year' },
+  { value: 36, label: '3 Years' },
+  { value: 60, label: '5 Years' },
+  { value: 120, label: '10 Years' },
+];
+
+// Level badge colors
+const levelColors: Record<string, string> = {
+  National: 'bg-purple-100 text-purple-700',
+  State: 'bg-blue-100 text-blue-700',
+  Metro: 'bg-emerald-100 text-emerald-700',
+  County: 'bg-orange-100 text-orange-700',
+  City: 'bg-pink-100 text-pink-700',
+  Zip: 'bg-gray-100 text-gray-700',
+};
+
+// Market classification colors
+const marketClassColors: Record<string, string> = {
+  hot: 'bg-red-100 text-red-700',
+  warm: 'bg-orange-100 text-orange-700',
+  neutral: 'bg-gray-100 text-gray-700',
+  cool: 'bg-blue-100 text-blue-700',
+  cold: 'bg-cyan-100 text-cyan-700',
+};
+
 export default function ComparePage() {
-  const [selectedStates, setSelectedStates] = useState<string[]>(['CA', 'TX']);
+  const [selectedRegions, setSelectedRegions] = useState<SelectedRegion[]>([]);
   const [data, setData] = useState<CompareData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const addState = (stateId: string) => {
-    if (selectedStates.length < 4 && !selectedStates.includes(stateId)) {
-      setSelectedStates([...selectedStates, stateId]);
-    }
-  };
+  // Filter states
+  const [homeType, setHomeType] = useState('All Homes');
+  const [tier, setTier] = useState('Mid-Tier');
+  const [months, setMonths] = useState(60);
 
-  const removeState = (stateId: string) => {
-    setSelectedStates(selectedStates.filter(s => s !== stateId));
-  };
+  // Generate chart config from selected regions
+  const chartConfig = useMemo(() => {
+    const config: ChartConfig = {};
+    selectedRegions.forEach((region) => {
+      config[region.regionId] = {
+        label: getShortName(region),
+        color: region.color,
+      };
+    });
+    return config;
+  }, [selectedRegions]);
 
-  // Fetch data when selected states change
+  // Fetch data when selected regions or filters change
   useEffect(() => {
     const fetchData = async () => {
-      if (selectedStates.length === 0) {
+      if (selectedRegions.length === 0) {
         setData(null);
         return;
       }
@@ -76,7 +132,14 @@ export default function ComparePage() {
       setError(null);
 
       try {
-        const response = await fetch(`/api/market/compare?states=${selectedStates.join(',')}`);
+        const regionIds = selectedRegions.map(r => r.regionId).join(',');
+        const params = new URLSearchParams({
+          regions: regionIds,
+          homeType,
+          tier,
+          months: months.toString(),
+        });
+        const response = await fetch(`/api/market/compare?${params}`);
         const result = await response.json();
 
         if (!response.ok) {
@@ -93,18 +156,17 @@ export default function ComparePage() {
     };
 
     fetchData();
-  }, [selectedStates]);
+  }, [selectedRegions, homeType, tier, months]);
 
-  const getStateStats = (stateId: string) => {
-    if (!data?.states[stateId]) {
-      return { current: 0, yoyChange: 0 };
-    }
-    const stats = data.states[stateId];
-    return {
-      current: stats.currentHomeValue || 0,
-      yoyChange: stats.homeValueYoyPct || 0,
-    };
+  const renderTrendIcon = (value: number | null) => {
+    if (value === null) return <Minus className="h-4 w-4 text-gray-400" />;
+    if (value > 0) return <TrendingUp className="h-4 w-4 text-green-500" />;
+    if (value < 0) return <TrendingDown className="h-4 w-4 text-red-500" />;
+    return <Minus className="h-4 w-4 text-gray-400" />;
   };
+
+  // Get filter description for chart subtitles
+  const filterDescription = `${homeType} • ${tier.replace('-', ' ')} • Last ${months >= 12 ? months / 12 : months} ${months >= 12 ? (months / 12 === 1 ? 'year' : 'years') : 'months'}`;
 
   return (
     <div className="p-6 space-y-6">
@@ -112,38 +174,95 @@ export default function ComparePage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Compare Regions</h1>
         <p className="text-gray-500 mt-1">
-          Compare home value trends across different states (max 4)
+          Compare home values, rent prices, and P/R ratios across different regions
         </p>
       </div>
 
-      {/* State Selection */}
+      {/* Region Picker */}
       <Card>
         <CardHeader>
-          <CardTitle>Select States to Compare</CardTitle>
+          <CardTitle>Select Regions to Compare</CardTitle>
           <CardDescription>
-            Click to add states. You can compare up to 4 states at once.
+            Search and select up to 4 regions to compare. You can mix different geography levels.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {availableStates.map((state) => {
-              const isSelected = selectedStates.includes(state.id);
-              return (
-                <Button
-                  key={state.id}
-                  variant={isSelected ? 'default' : 'outline'}
-                  onClick={() => isSelected ? removeState(state.id) : addState(state.id)}
-                  disabled={!isSelected && selectedStates.length >= 4}
-                  style={isSelected ? { backgroundColor: state.color } : {}}
-                >
-                  {state.name}
-                  {isSelected && <X className="ml-2 h-4 w-4" />}
-                </Button>
-              );
-            })}
-          </div>
+          <RegionComparePicker
+            selectedRegions={selectedRegions}
+            onRegionsChange={setSelectedRegions}
+            maxRegions={4}
+          />
         </CardContent>
       </Card>
+
+      {/* Filters */}
+      {selectedRegions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <SlidersHorizontal className="h-5 w-5" />
+              Chart Filters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap items-start gap-6">
+              {/* Home Type Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Home Type</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {HOME_TYPES.map((type) => (
+                    <Button
+                      key={type.value}
+                      variant={homeType === type.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setHomeType(type.value)}
+                      className="text-xs"
+                    >
+                      {type.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tier Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Price Tier</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {TIERS.map((t) => (
+                    <Button
+                      key={t.value}
+                      variant={tier === t.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setTier(t.value)}
+                      className="text-xs"
+                    >
+                      {t.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Time Range Filter */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">Time Range</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {TIME_RANGES.map((range) => (
+                    <Button
+                      key={range.value}
+                      variant={months === range.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setMonths(range.value)}
+                      className="text-xs"
+                    >
+                      {range.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Error State */}
       {error && (
@@ -155,48 +274,125 @@ export default function ComparePage() {
       )}
 
       {/* Loading State for Stats */}
-      {loading && selectedStates.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {selectedStates.map((stateId) => (
-            <Card key={stateId}>
+      {loading && selectedRegions.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {selectedRegions.map((region) => (
+            <Card key={region.regionId}>
               <CardHeader className="pb-2">
-                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-5 w-32" />
               </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-32 mb-2" />
-                <Skeleton className="h-4 w-16" />
+              <CardContent className="space-y-3">
+                <Skeleton className="h-8 w-28" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-24" />
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Comparison Table */}
-      {!loading && !error && selectedStates.length > 0 && data && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {selectedStates.map((stateId) => {
-            const state = availableStates.find(s => s.id === stateId);
-            const stats = getStateStats(stateId);
+      {/* Region Stats Cards */}
+      {!loading && !error && selectedRegions.length > 0 && data && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {selectedRegions.map((selectedRegion) => {
+            const stats = data.regions[selectedRegion.regionId];
+            if (!stats) return null;
+
             return (
-              <Card key={stateId}>
+              <Card key={selectedRegion.regionId} className="overflow-hidden">
+                {/* Color bar at top */}
+                <div 
+                  className="h-1.5" 
+                  style={{ backgroundColor: selectedRegion.color }}
+                />
+                
                 <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: state?.color }}
-                    />
-                    <CardTitle className="text-lg">{state?.name}</CardTitle>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="text-base truncate">
+                        {getDisplayName(stats)}
+                      </CardTitle>
+                    </div>
+                    <Badge 
+                      variant="secondary" 
+                      className={cn('shrink-0 text-[10px]', levelColors[stats.geographyLevel || ''])}
+                    >
+                      {stats.geographyLevel}
+                    </Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {stats.current > 0 ? formatCurrency(stats.current) : 'N/A'}
+                
+                <CardContent className="space-y-3">
+                  {/* Home Value */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Home className="h-4 w-4" />
+                      <span>Home Value</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-lg">
+                        {stats.currentHomeValue 
+                          ? formatCurrency(stats.currentHomeValue)
+                          : 'N/A'}
+                      </div>
+                      {stats.homeValueYoyPct !== null && (
+                        <div className={cn(
+                          'flex items-center justify-end gap-1 text-xs',
+                          stats.homeValueYoyPct >= 0 ? 'text-green-600' : 'text-red-600'
+                        )}>
+                          {renderTrendIcon(stats.homeValueYoyPct)}
+                          {stats.homeValueYoyPct >= 0 ? '+' : ''}{stats.homeValueYoyPct.toFixed(1)}% YoY
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {stats.current > 0 && (
-                    <p className={`text-sm ${stats.yoyChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {stats.yoyChange >= 0 ? '+' : ''}{stats.yoyChange.toFixed(1)}% YoY
-                    </p>
-                  )}
+
+                  {/* Rent Value */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      <span>Rent</span>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">
+                        {stats.currentRentValue 
+                          ? `${formatCurrency(stats.currentRentValue)}/mo`
+                          : 'N/A'}
+                      </div>
+                      {stats.rentYoyPct !== null && (
+                        <div className={cn(
+                          'flex items-center justify-end gap-1 text-xs',
+                          stats.rentYoyPct >= 0 ? 'text-green-600' : 'text-red-600'
+                        )}>
+                          {renderTrendIcon(stats.rentYoyPct)}
+                          {stats.rentYoyPct >= 0 ? '+' : ''}{stats.rentYoyPct.toFixed(1)}% YoY
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* P/R Ratio & Market Classification */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <BarChart3 className="h-4 w-4" />
+                      <span>P/R Ratio</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">
+                        {stats.priceToRentRatio 
+                          ? `${stats.priceToRentRatio.toFixed(1)}x`
+                          : 'N/A'}
+                      </span>
+                      {stats.marketClassification && (
+                        <Badge 
+                          variant="secondary" 
+                          className={cn('text-[10px] capitalize', marketClassColors[stats.marketClassification])}
+                        >
+                          {stats.marketClassification}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -204,90 +400,329 @@ export default function ComparePage() {
         </div>
       )}
 
-      {/* Loading State for Chart */}
-      {loading && selectedStates.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Home Value Comparison</CardTitle>
-            <CardDescription>Loading data...</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-[400px] w-full" />
-          </CardContent>
-        </Card>
+      {/* Loading State for Charts */}
+      {loading && selectedRegions.length > 0 && (
+        <div className="grid gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-64" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
-      {/* Comparison Chart */}
-      {!loading && !error && selectedStates.length > 0 && data && data.trends.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Home Value Comparison</CardTitle>
-            <CardDescription>
-              Zillow Home Value Index (ZHVI) comparison - Last 10 years
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.trends}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="formattedDate"
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(value, index) => {
-                      if (index % 12 === 0) return value;
-                      return '';
-                    }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 12 }}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                  />
-                  <Tooltip
-                    formatter={(value, name) => {
-                      if (typeof value !== 'number') return [String(value), String(name)];
-                      const state = availableStates.find(s => s.id === name);
-                      return [formatCurrency(value), state?.name || String(name)];
-                    }}
-                    labelFormatter={(label) => `Date: ${label}`}
-                  />
-                  <Legend
-                    formatter={(value) => {
-                      const state = availableStates.find(s => s.id === value);
-                      return state?.name || value;
-                    }}
-                  />
-                  {selectedStates.map((stateId) => {
-                    const state = availableStates.find(s => s.id === stateId);
-                    return (
+      {/* Charts */}
+      {!loading && !error && selectedRegions.length > 0 && data && (
+        <div className="grid gap-6">
+          {/* Home Value Chart */}
+          {data.homeValueTrends.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Home className="h-5 w-5" />
+                  Home Value Comparison
+                </CardTitle>
+                <CardDescription>
+                  Zillow Home Value Index (ZHVI) — {filterDescription}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                  <LineChart
+                    data={data.homeValueTrends}
+                    margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="formattedDate"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value, index) => {
+                        const interval = months <= 36 ? 6 : 12;
+                        if (index % interval === 0) return value;
+                        return '';
+                      }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `${label}`}
+                          formatter={(value, name) => {
+                            const regionId = String(name);
+                            const config = chartConfig[regionId];
+                            return (
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">
+                                  {config?.label || regionId}
+                                </span>
+                                <span className="font-mono font-medium">
+                                  {formatCurrency(Number(value))}
+                                </span>
+                              </div>
+                            );
+                          }}
+                        />
+                      }
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    {selectedRegions.map((region) => (
                       <Line
-                        key={stateId}
+                        key={region.regionId}
+                        dataKey={region.regionId}
                         type="monotone"
-                        dataKey={stateId}
-                        name={stateId}
-                        stroke={state?.color}
+                        stroke={region.color}
                         strokeWidth={2}
                         dot={false}
-                        activeDot={{ r: 6 }}
+                        activeDot={{ r: 4, strokeWidth: 0 }}
                       />
-                    );
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+                    ))}
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Rent Price Chart */}
+          {data.rentTrends.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Rent Price Comparison
+                </CardTitle>
+                <CardDescription>
+                  Zillow Observed Rent Index (ZORI) — Last {months >= 12 ? months / 12 : months} {months >= 12 ? (months / 12 === 1 ? 'year' : 'years') : 'months'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                  <LineChart
+                    data={data.rentTrends}
+                    margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="formattedDate"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value, index) => {
+                        const interval = months <= 36 ? 6 : 12;
+                        if (index % interval === 0) return value;
+                        return '';
+                      }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `${label}`}
+                          formatter={(value, name) => {
+                            const regionId = String(name);
+                            const config = chartConfig[regionId];
+                            return (
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">
+                                  {config?.label || regionId}
+                                </span>
+                                <span className="font-mono font-medium">
+                                  {formatCurrency(Number(value))}/mo
+                                </span>
+                              </div>
+                            );
+                          }}
+                        />
+                      }
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    {selectedRegions.map((region) => (
+                      <Line
+                        key={region.regionId}
+                        dataKey={region.regionId}
+                        type="monotone"
+                        stroke={region.color}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, strokeWidth: 0 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Price-to-Rent Ratio Chart */}
+          {data.priceToRentTrends.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Price-to-Rent Ratio Comparison
+                </CardTitle>
+                <CardDescription>
+                  Home Value ÷ (Annual Rent) — Lower values favor buying, higher favor renting
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                  <LineChart
+                    data={data.priceToRentTrends}
+                    margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis
+                      dataKey="formattedDate"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value, index) => {
+                        const interval = months <= 36 ? 6 : 12;
+                        if (index % interval === 0) return value;
+                        return '';
+                      }}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      tickFormatter={(value) => `${value}x`}
+                      domain={['auto', 'auto']}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(label) => `${label}`}
+                          formatter={(value, name) => {
+                            const regionId = String(name);
+                            const config = chartConfig[regionId];
+                            const numValue = Number(value);
+                            const interpretation = numValue < 15 
+                              ? 'Buy-favorable' 
+                              : numValue > 20 
+                                ? 'Rent-favorable' 
+                                : 'Neutral';
+                            return (
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">
+                                  {config?.label || regionId}
+                                </span>
+                                <span className="font-mono font-medium">
+                                  {numValue.toFixed(1)}x
+                                  <span className="ml-1 text-xs text-muted-foreground">
+                                    ({interpretation})
+                                  </span>
+                                </span>
+                              </div>
+                            );
+                          }}
+                        />
+                      }
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    {selectedRegions.map((region) => (
+                      <Line
+                        key={region.regionId}
+                        dataKey={region.regionId}
+                        type="monotone"
+                        stroke={region.color}
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, strokeWidth: 0 }}
+                      />
+                    ))}
+                  </LineChart>
+                </ChartContainer>
+
+                {/* P/R Ratio Legend */}
+                <div className="mt-4 flex items-center justify-center gap-6 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-green-500" />
+                    <span>&lt;15x: Buy favorable</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                    <span>15-20x: Neutral</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-red-500" />
+                    <span>&gt;20x: Rent favorable</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
-      {selectedStates.length === 0 && (
+      {/* Empty State */}
+      {selectedRegions.length === 0 && (
         <Card className="bg-gray-50">
           <CardContent className="py-12 text-center">
-            <p className="text-gray-500">
-              Select at least one state above to see the comparison chart.
+            <BarChart3 className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+            <p className="text-gray-500 text-lg font-medium">
+              No regions selected
+            </p>
+            <p className="text-gray-400 mt-1">
+              Add regions above to compare home values, rents, and price-to-rent ratios
             </p>
           </CardContent>
         </Card>
       )}
     </div>
   );
+}
+
+// Helper functions
+function getDisplayName(region: RegionStats | SelectedRegion) {
+  if ('displayName' in region && region.displayName) return region.displayName;
+  if (region.geographyLevel === 'State') {
+    return region.stateName || region.regionName;
+  }
+  if (region.geographyLevel === 'Metro' && region.state) {
+    return `${region.regionName}, ${region.state}`;
+  }
+  if (region.geographyLevel === 'County' && region.state) {
+    return `${region.county || region.regionName}, ${region.state}`;
+  }
+  if (region.geographyLevel === 'City' && region.state) {
+    return `${region.city || region.regionName}, ${region.state}`;
+  }
+  return region.regionName;
+}
+
+function getShortName(region: RegionStats | SelectedRegion) {
+  if (region.geographyLevel === 'State') {
+    return region.state || region.regionName;
+  }
+  if (region.geographyLevel === 'City' && region.city) {
+    return region.city;
+  }
+  if (region.geographyLevel === 'County' && region.county) {
+    return region.county?.replace(' County', '') || region.regionName;
+  }
+  if (region.geographyLevel === 'Metro') {
+    // Shorten metro names like "Austin-Round Rock-San Marcos, TX" to "Austin"
+    const name = region.regionName || '';
+    return name.split('-')[0].split(',')[0];
+  }
+  return region.regionName;
 }

@@ -1,127 +1,147 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, regions, zhviValues, marketSummary } from '@/lib/db';
-import { eq, and, inArray, isNull, gte } from 'drizzle-orm';
+import { db, regions, zhviValues, zoriValues, marketSummary } from '@/lib/db';
+import { and, inArray, isNull, gte, eq } from 'drizzle-orm';
 
-// State abbreviation to full name mapping
-const STATE_ABBR_TO_NAME: Record<string, string> = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida',
-  GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana',
-  IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine',
-  MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi',
-  MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire',
-  NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota',
-  OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island',
-  SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
-  VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin',
-  WY: 'Wyoming',
-};
+// Color palette for comparison lines
+const COMPARISON_COLORS = [
+  '#2563eb', // Blue
+  '#16a34a', // Green
+  '#dc2626', // Red
+  '#9333ea', // Purple
+  '#ea580c', // Orange
+  '#0891b2', // Cyan
+  '#db2777', // Pink
+  '#65a30d', // Lime
+];
 
-// Color palette for states
-const stateColors: Record<string, string> = {
-  CA: '#2563eb',
-  TX: '#16a34a',
-  FL: '#dc2626',
-  NY: '#9333ea',
-  WA: '#ea580c',
-  CO: '#0891b2',
-  AZ: '#db2777',
-  NC: '#65a30d',
-};
+// Valid filter options
+const VALID_HOME_TYPES = ['All Homes', 'Single Family', 'Condo', 'Multi Family'];
+const VALID_TIERS = ['Mid-Tier', 'Top-Tier', 'Bottom-Tier'];
+const VALID_MONTHS = [12, 36, 60, 120]; // 1Y, 3Y, 5Y, 10Y
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const stateAbbrs = searchParams.get('states')?.split(',').filter(Boolean) || [];
+    const regionIds = searchParams.get('regions')?.split(',').filter(Boolean) || [];
 
-    if (stateAbbrs.length === 0) {
+    // Parse filter parameters with defaults
+    const homeType = searchParams.get('homeType') || 'All Homes';
+    const tier = searchParams.get('tier') || 'Mid-Tier';
+    const months = parseInt(searchParams.get('months') || '60', 10);
+
+    if (regionIds.length === 0) {
       return NextResponse.json(
-        { error: 'At least one state is required' },
+        { error: 'At least one region is required' },
         { status: 400 }
       );
     }
 
-    // Convert abbreviations to full state names
-    const stateNames = stateAbbrs
-      .map((abbr) => STATE_ABBR_TO_NAME[abbr])
-      .filter(Boolean);
-
-    if (stateNames.length === 0) {
+    if (regionIds.length > 8) {
       return NextResponse.json(
-        { error: 'Invalid state abbreviations' },
+        { error: 'Maximum 8 regions allowed' },
         { status: 400 }
       );
     }
 
-    // Find region IDs for state-level regions by regionName
-    const stateRegions = await db
+    // Validate filters
+    const validHomeType = VALID_HOME_TYPES.includes(homeType) ? homeType : 'All Homes';
+    const validTier = VALID_TIERS.includes(tier) ? tier : 'Mid-Tier';
+    const validMonths = VALID_MONTHS.includes(months) ? months : 60;
+
+    // Get region info
+    const regionData = await db
       .select({
         regionId: regions.regionId,
         regionName: regions.regionName,
+        displayName: regions.displayName,
+        geographyLevel: regions.geographyLevel,
+        state: regions.state,
+        stateName: regions.stateName,
+        city: regions.city,
+        county: regions.county,
+        metro: regions.metro,
       })
       .from(regions)
-      .where(
-        and(
-          eq(regions.geographyLevel, 'State'),
-          inArray(regions.regionName, stateNames)
-        )
-      );
+      .where(inArray(regions.regionId, regionIds));
 
-    if (stateRegions.length === 0) {
+    if (regionData.length === 0) {
       return NextResponse.json(
-        { error: 'No regions found for the specified states' },
+        { error: 'No regions found for the specified IDs' },
         { status: 404 }
       );
     }
-
-    // Create mapping from regionName to abbreviation
-    const nameToAbbr = Object.fromEntries(
-      Object.entries(STATE_ABBR_TO_NAME).map(([abbr, name]) => [name, abbr])
-    );
-
-    const regionIds = stateRegions.map((r) => r.regionId);
 
     // Get market summary data for current values
     const summaryResults = await db
       .select({
         regionId: marketSummary.regionId,
         regionName: marketSummary.regionName,
+        displayName: marketSummary.displayName,
+        geographyLevel: marketSummary.geographyLevel,
         currentHomeValue: marketSummary.currentHomeValue,
         homeValueYoyPct: marketSummary.homeValueYoyPct,
+        homeValueMomPct: marketSummary.homeValueMomPct,
+        currentRentValue: marketSummary.currentRentValue,
+        rentYoyPct: marketSummary.rentYoyPct,
+        priceToRentRatio: marketSummary.priceToRentRatio,
+        marketClassification: marketSummary.marketClassification,
       })
       .from(marketSummary)
       .where(inArray(marketSummary.regionId, regionIds));
 
-    // Create state stats from market summary, keyed by abbreviation
-    const stateStats: Record<string, {
+    // Create region stats with colors
+    const regionStats: Record<string, {
       regionId: string;
-      stateCode: string;
+      regionName: string | null;
+      displayName: string | null;
+      geographyLevel: string | null;
+      state: string | null;
       stateName: string | null;
+      city: string | null;
+      county: string | null;
+      metro: string | null;
       currentHomeValue: number | null;
       homeValueYoyPct: number | null;
+      homeValueMomPct: number | null;
+      currentRentValue: number | null;
+      rentYoyPct: number | null;
+      priceToRentRatio: number | null;
+      marketClassification: string | null;
       color: string;
     }> = {};
 
-    for (const r of summaryResults) {
-      const abbr = nameToAbbr[r.regionName || ''];
-      if (abbr) {
-        stateStats[abbr] = {
-          regionId: r.regionId,
-          stateCode: abbr,
-          stateName: r.regionName,
-          currentHomeValue: r.currentHomeValue,
-          homeValueYoyPct: r.homeValueYoyPct,
-          color: stateColors[abbr] || '#6b7280',
-        };
-      }
+    // Match region data with summary data
+    let colorIndex = 0;
+    for (const region of regionData) {
+      const summary = summaryResults.find(s => s.regionId === region.regionId);
+      regionStats[region.regionId] = {
+        regionId: region.regionId,
+        regionName: region.regionName,
+        displayName: region.displayName,
+        geographyLevel: region.geographyLevel,
+        state: region.state,
+        stateName: region.stateName,
+        city: region.city,
+        county: region.county,
+        metro: region.metro,
+        currentHomeValue: summary?.currentHomeValue || null,
+        homeValueYoyPct: summary?.homeValueYoyPct || null,
+        homeValueMomPct: summary?.homeValueMomPct || null,
+        currentRentValue: summary?.currentRentValue || null,
+        rentYoyPct: summary?.rentYoyPct || null,
+        priceToRentRatio: summary?.priceToRentRatio || null,
+        marketClassification: summary?.marketClassification || null,
+        color: COMPARISON_COLORS[colorIndex % COMPARISON_COLORS.length],
+      };
+      colorIndex++;
     }
 
-    // Get historical data for the last 10 years
-    const tenYearsAgo = new Date();
-    tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 10);
-    const dateString = tenYearsAgo.toISOString().split('T')[0];
+    // Calculate date range based on months parameter
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - validMonths);
+    const dateString = startDate.toISOString().split('T')[0];
 
-    // Fetch home values (ZHVI) for all selected regions
+    // Fetch home values (ZHVI) for all selected regions with filters
     const homeValueResults = await db
       .select({
         regionId: zhviValues.regionId,
@@ -132,8 +152,8 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           inArray(zhviValues.regionId, regionIds),
-          eq(zhviValues.homeType, 'All Homes'),
-          eq(zhviValues.tier, 'Mid-Tier'),
+          eq(zhviValues.homeType, validHomeType),
+          eq(zhviValues.tier, validTier),
           eq(zhviValues.smoothed, true),
           eq(zhviValues.seasonallyAdjusted, true),
           isNull(zhviValues.bedrooms),
@@ -142,48 +162,117 @@ export async function GET(request: NextRequest) {
       )
       .orderBy(zhviValues.date);
 
-    // Create a map of regionId to state abbreviation
-    const regionIdToAbbr = new Map<string, string>();
-    for (const r of stateRegions) {
-      const abbr = nameToAbbr[r.regionName || ''];
-      if (abbr) {
-        regionIdToAbbr.set(r.regionId, abbr);
-      }
-    }
+    // Fetch rent values (ZORI) for all selected regions
+    // Note: ZORI doesn't have tier, and typically only has "All Homes"
+    const rentValueResults = await db
+      .select({
+        regionId: zoriValues.regionId,
+        date: zoriValues.date,
+        value: zoriValues.value,
+      })
+      .from(zoriValues)
+      .where(
+        and(
+          inArray(zoriValues.regionId, regionIds),
+          eq(zoriValues.homeType, 'All Homes'),
+          eq(zoriValues.smoothed, true),
+          eq(zoriValues.seasonallyAdjusted, true),
+          gte(zoriValues.date, dateString)
+        )
+      )
+      .orderBy(zoriValues.date);
 
-    // Group values by date
-    const valuesByDate = new Map<string, Record<string, number>>();
-
+    // Group home values by date
+    const homeValuesByDate = new Map<string, Record<string, number>>();
     for (const row of homeValueResults) {
       if (!row.date || !row.value || !row.regionId) continue;
-
-      const stateAbbr = regionIdToAbbr.get(row.regionId);
-      if (!stateAbbr) continue;
-
       const dateKey = row.date;
-      if (!valuesByDate.has(dateKey)) {
-        valuesByDate.set(dateKey, {});
+      if (!homeValuesByDate.has(dateKey)) {
+        homeValuesByDate.set(dateKey, {});
       }
-      valuesByDate.get(dateKey)![stateAbbr] = row.value;
+      homeValuesByDate.get(dateKey)![row.regionId] = row.value;
     }
 
-    // Convert to array format for chart
-    const trends = Array.from(valuesByDate.entries())
+    // Group rent values by date
+    const rentValuesByDate = new Map<string, Record<string, number>>();
+    for (const row of rentValueResults) {
+      if (!row.date || !row.value || !row.regionId) continue;
+      const dateKey = row.date;
+      if (!rentValuesByDate.has(dateKey)) {
+        rentValuesByDate.set(dateKey, {});
+      }
+      rentValuesByDate.get(dateKey)![row.regionId] = row.value;
+    }
+
+    // Get all unique dates
+    const allDates = new Set([
+      ...homeValuesByDate.keys(),
+      ...rentValuesByDate.keys(),
+    ]);
+
+    // Convert to array format for charts
+    const formatDate = (date: string) => {
+      const d = new Date(date);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+    };
+
+    // Home value trends
+    const homeValueTrends = Array.from(homeValuesByDate.entries())
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => {
-        const d = new Date(date);
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      .map(([date, values]) => ({
+        date,
+        formattedDate: formatDate(date),
+        ...values,
+      }));
+
+    // Rent value trends
+    const rentTrends = Array.from(rentValuesByDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, values]) => ({
+        date,
+        formattedDate: formatDate(date),
+        ...values,
+      }));
+
+    // Calculate P/R Ratio trends (home value / (rent * 12))
+    const priceToRentTrends = Array.from(allDates)
+      .sort()
+      .map((date) => {
+        const homeValues = homeValuesByDate.get(date) || {};
+        const rentValues = rentValuesByDate.get(date) || {};
+        
+        const ratios: Record<string, number> = {};
+        for (const regionId of regionIds) {
+          const homeValue = homeValues[regionId];
+          const rentValue = rentValues[regionId];
+          if (homeValue && rentValue && rentValue > 0) {
+            ratios[regionId] = Math.round((homeValue / (rentValue * 12)) * 10) / 10;
+          }
+        }
+        
+        // Only include dates where at least one region has data
+        if (Object.keys(ratios).length === 0) return null;
+        
         return {
           date,
-          formattedDate: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
-          ...values,
+          formattedDate: formatDate(date),
+          ...ratios,
         };
-      });
+      })
+      .filter(Boolean);
 
     return NextResponse.json({
       data: {
-        states: stateStats,
-        trends,
+        regions: regionStats,
+        homeValueTrends,
+        rentTrends,
+        priceToRentTrends,
+        filters: {
+          homeType: validHomeType,
+          tier: validTier,
+          months: validMonths,
+        },
       },
     });
   } catch (error) {

@@ -1,13 +1,32 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { scaleSequential } from 'd3-scale';
 import { formatCurrency } from '@/lib/utils';
+import { AlertCircle } from 'lucide-react';
+
+// Dynamically import react-simple-maps to avoid SSR issues with React 19
+const ComposableMap = dynamic(
+  () => import('react-simple-maps').then((mod) => mod.ComposableMap),
+  { ssr: false }
+);
+const Geographies = dynamic(
+  () => import('react-simple-maps').then((mod) => mod.Geographies),
+  { ssr: false }
+);
+const Geography = dynamic(
+  () => import('react-simple-maps').then((mod) => mod.Geography),
+  { ssr: false }
+);
+const ZoomableGroup = dynamic(
+  () => import('react-simple-maps').then((mod) => mod.ZoomableGroup),
+  { ssr: false }
+);
 
 // US states GeoJSON URL
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
@@ -95,6 +114,14 @@ export default function MapPage() {
   const [metric, setMetric] = useState('homeValueYoyPct');
   const [hoveredState, setHoveredState] = useState<MarketData | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Small delay to ensure dynamic imports are loaded
+    const timer = setTimeout(() => setMapReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -148,8 +175,8 @@ export default function MapPage() {
     return colorScale(value);
   };
 
-  const handleMouseEnter = (geo: { id: string }, event: React.MouseEvent) => {
-    const stateName = FIPS_TO_STATE_NAME[geo.id];
+  const handleMouseEnter = (geoId: string, event: React.MouseEvent) => {
+    const stateName = FIPS_TO_STATE_NAME[geoId];
     const stateData = stateDataMap.get(stateName);
     if (stateData) {
       setHoveredState(stateData);
@@ -207,6 +234,16 @@ export default function MapPage() {
         </Card>
       )}
 
+      {/* Map Error State */}
+      {mapError && (
+        <Card className="bg-amber-50 border-amber-200">
+          <CardContent className="py-6 flex items-center justify-center gap-2">
+            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <p className="text-amber-600">{mapError}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Map */}
       <Card>
         <CardHeader>
@@ -216,7 +253,7 @@ export default function MapPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {(loading || !mapReady) ? (
             <Skeleton className="h-[500px] w-full" />
           ) : (
             <div className="relative">
@@ -225,10 +262,23 @@ export default function MapPage() {
                 style={{ width: '100%', height: '500px' }}
               >
                 <ZoomableGroup>
-                  <Geographies geography={GEO_URL}>
-                    {({ geographies }) =>
-                      geographies.map((geo) => {
+                  <Geographies 
+                    geography={GEO_URL}
+                    parseGeographies={(geos) => {
+                      // Filter out any invalid geographies
+                      return geos.filter((g) => g.id && FIPS_TO_STATE_NAME[g.id]);
+                    }}
+                  >
+                    {({ geographies }) => {
+                      if (!geographies || geographies.length === 0) {
+                        setMapError('Failed to load map data. Please refresh the page.');
+                        return null;
+                      }
+                      
+                      return geographies.map((geo) => {
                         const stateName = FIPS_TO_STATE_NAME[geo.id];
+                        if (!stateName) return null;
+                        
                         return (
                           <Geography
                             key={geo.rsmKey}
@@ -241,13 +291,13 @@ export default function MapPage() {
                               hover: { outline: 'none', fill: '#3b82f6', cursor: 'pointer' },
                               pressed: { outline: 'none' },
                             }}
-                            onMouseEnter={(event) => handleMouseEnter(geo, event)}
+                            onMouseEnter={(event) => handleMouseEnter(geo.id, event)}
                             onMouseMove={handleMouseMove}
                             onMouseLeave={handleMouseLeave}
                           />
                         );
-                      })
-                    }
+                      });
+                    }}
                   </Geographies>
                 </ZoomableGroup>
               </ComposableMap>
@@ -333,6 +383,65 @@ export default function MapPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Data Table */}
+      {!loading && data.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>State Data</CardTitle>
+            <CardDescription>
+              Detailed market data for all states
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-3 font-medium">State</th>
+                    <th className="text-right py-2 px-3 font-medium">Home Value</th>
+                    <th className="text-right py-2 px-3 font-medium">YoY %</th>
+                    <th className="text-right py-2 px-3 font-medium">Rent</th>
+                    <th className="text-right py-2 px-3 font-medium">Yield %</th>
+                    <th className="text-right py-2 px-3 font-medium">P/R Ratio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data
+                    .slice()
+                    .sort((a, b) => (b.currentHomeValue || 0) - (a.currentHomeValue || 0))
+                    .map((state) => (
+                      <tr key={state.regionId} className="border-b hover:bg-gray-50">
+                        <td className="py-2 px-3 font-medium">{state.regionName}</td>
+                        <td className="text-right py-2 px-3">
+                          {state.currentHomeValue ? formatCurrency(state.currentHomeValue) : 'N/A'}
+                        </td>
+                        <td className={`text-right py-2 px-3 ${
+                          state.homeValueYoyPct && state.homeValueYoyPct >= 0 
+                            ? 'text-green-600' 
+                            : 'text-red-600'
+                        }`}>
+                          {state.homeValueYoyPct 
+                            ? `${state.homeValueYoyPct >= 0 ? '+' : ''}${state.homeValueYoyPct.toFixed(1)}%`
+                            : 'N/A'}
+                        </td>
+                        <td className="text-right py-2 px-3">
+                          {state.currentRentValue ? formatCurrency(state.currentRentValue) : 'N/A'}
+                        </td>
+                        <td className="text-right py-2 px-3">
+                          {state.grossRentYieldPct ? `${state.grossRentYieldPct.toFixed(1)}%` : 'N/A'}
+                        </td>
+                        <td className="text-right py-2 px-3">
+                          {state.priceToRentRatio ? `${state.priceToRentRatio.toFixed(1)}x` : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

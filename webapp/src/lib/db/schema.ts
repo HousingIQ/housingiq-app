@@ -94,6 +94,19 @@ export const marketSummary = appSchema.table('market_summary', {
   marketClassification: varchar('market_classification', { length: 20 }),
 });
 
+// Inventory Values fact table (for-sale inventory over time) - loaded by data platform
+export const inventoryValues = appSchema.table('inventory_values', {
+  regionId: varchar('region_id', { length: 100 }),
+  date: date('date'),
+  inventoryCount: integer('inventory_count'),
+  geographyLevel: varchar('geography_level', { length: 50 }),
+  homeType: varchar('home_type', { length: 50 }),
+  smoothed: boolean('smoothed'),
+  frequency: varchar('frequency', { length: 20 }),
+  momChangePct: real('mom_change_pct'),
+  yoyChangePct: real('yoy_change_pct'),
+});
+
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   zhviValues: many(zhviValues),
@@ -114,6 +127,14 @@ export const zoriValuesRelations = relations(zoriValues, ({ one }) => ({
   }),
 }));
 
+// Inventory relations
+export const inventoryValuesRelations = relations(inventoryValues, ({ one }) => ({
+  region: one(regions, {
+    fields: [inventoryValues.regionId],
+    references: [regions.regionId],
+  }),
+}));
+
 // Type exports for use in application
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -124,3 +145,5 @@ export type NewZhviValue = typeof zhviValues.$inferInsert;
 export type ZoriValue = typeof zoriValues.$inferSelect;
 export type NewZoriValue = typeof zoriValues.$inferInsert;
 export type MarketSummary = typeof marketSummary.$inferSelect;
+export type InventoryValue = typeof inventoryValues.$inferSelect;
+export type NewInventoryValue = typeof inventoryValues.$inferInsert;

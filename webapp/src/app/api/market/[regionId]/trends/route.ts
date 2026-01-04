@@ -85,7 +85,7 @@ export async function GET(
       rentResults.map((r) => [r.date, r.value])
     );
 
-    // Merge home values with rent values
+    // Merge home values with rent values and calculate P/R ratio
     const trendsWithChange = homeValueResults.map((item, index) => {
       const prevValue = index > 0 ? homeValueResults[index - 1].value : null;
       const momChangePct =
@@ -93,11 +93,22 @@ export async function GET(
           ? ((item.value - prevValue) / prevValue) * 100
           : null;
 
+      const rentValue = rentByDate.get(item.date!) ?? null;
+      
+      // Calculate Price-to-Rent ratio: Home Value / (Annual Rent)
+      // A ratio of 15 or less is generally favorable to buy
+      // A ratio of 20+ is generally favorable to rent
+      const priceToRentRatio = 
+        item.value && rentValue && rentValue > 0
+          ? Math.round((item.value / (rentValue * 12)) * 10) / 10
+          : null;
+
       return {
         date: item.date,
         homeValue: item.value,
-        rentValue: rentByDate.get(item.date!) ?? null,
+        rentValue,
         momChangePct: momChangePct ? Math.round(momChangePct * 100) / 100 : null,
+        priceToRentRatio,
       };
     });
 

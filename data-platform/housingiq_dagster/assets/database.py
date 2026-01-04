@@ -237,3 +237,55 @@ def app_market_summary(context: AssetExecutionContext) -> MaterializeResult:
             ),
         }
     )
+
+
+@asset(
+    group_name="app_database",
+    description="Load inventory values to app.inventory_values table",
+    deps=["fct_inventory_values"],
+    compute_kind="postgres",
+)
+def app_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Load inventory fact table to PostgreSQL for webapp.
+    """
+    values_path = PROCESSED_DIR / "fct_inventory_values.parquet"
+
+    if not values_path.exists():
+        context.log.warning(f"Inventory file not found: {values_path}")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    context.log.info("Reading inventory values...")
+    df = pl.read_parquet(values_path)
+
+    # Select columns for webapp schema
+    df_app = df.select([
+        pl.col("region_id"),
+        pl.col("date"),
+        pl.col("inventory_count"),
+        pl.col("geography_level"),
+        pl.col("home_type"),
+        pl.col("smoothed"),
+        pl.col("frequency"),
+        pl.col("mom_change_pct"),
+        pl.col("yoy_change_pct"),
+    ])
+
+    ensure_app_schema()
+
+    context.log.info(f"Loading {len(df_app):,} rows to app.inventory_values...")
+    drop_and_create_table("app.inventory_values", df_app)
+
+    context.log.info(f"Loaded {len(df_app):,} values to app.inventory_values")
+
+    return MaterializeResult(
+        metadata={
+            "row_count": MetadataValue.int(len(df_app)),
+            "geography_levels": MetadataValue.json(
+                df_app["geography_level"].unique().to_list()
+            ),
+            "date_range": MetadataValue.text(
+                f"{df_app['date'].min()} to {df_app['date'].max()}"
+            ),
+        }
+    )
