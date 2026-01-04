@@ -14,6 +14,16 @@ export function formatCurrency(value: number): string {
   }).format(value)
 }
 
+export function formatCurrencyCompact(value: number): string {
+  if (value >= 1_000_000) {
+    return `$${(value / 1_000_000).toFixed(1)}M`
+  }
+  if (value >= 1_000) {
+    return `$${Math.round(value / 1_000)}k`
+  }
+  return `$${Math.round(value)}`
+}
+
 export function formatPercent(value: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'percent',

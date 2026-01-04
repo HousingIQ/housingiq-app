@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { BedDouble, TrendingUp, TrendingDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { formatCurrency, cn } from '@/lib/utils';
+import { formatCurrency, formatCurrencyCompact, cn } from '@/lib/utils';
 import {
   ChartConfig,
   ChartContainer,
@@ -146,16 +146,16 @@ export function BedroomComparisonChart({ regionId, className }: BedroomCompariso
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {stats.map((stat) => (
             <div
               key={stat.bedrooms}
               className="rounded-lg border p-3"
               style={{ borderLeftColor: stat.color, borderLeftWidth: 4 }}
             >
-              <div className="text-xs text-muted-foreground mb-1">{stat.label}</div>
-              <div className="font-bold text-lg">
-                {stat.currentValue ? formatCurrency(stat.currentValue) : 'N/A'}
+              <div className="text-xs text-muted-foreground mb-1">{stat.label.replace('Bedroom', 'Br')}</div>
+              <div className="font-bold text-base lg:text-lg">
+                {stat.currentValue ? formatCurrencyCompact(stat.currentValue) : 'N/A'}
               </div>
               {stat.yoyChange !== null && (
                 <div
