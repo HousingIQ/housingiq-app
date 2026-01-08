@@ -21,8 +21,19 @@ class DatasetInfo(TypedDict):
 # Base URL for Zillow data files
 BASE_CDN_URL = "https://files.zillowstatic.com/research/public_csvs"
 
-# Default categories to download (MVP scope)
-DEFAULT_CATEGORIES = ["zhvi", "zori", "invt_fs"]
+# Default categories to download (Phase 2: Market Heat & Affordability)
+DEFAULT_CATEGORIES = [
+    # Phase 1: Core Data
+    "zhvi",
+    "zori", 
+    "invt_fs",
+    # Phase 2: Market Heat & Affordability
+    "market_temp_index",
+    "mortgage_payment",
+    "total_monthly_payment",
+    "new_homeowner_income_needed",
+    "new_renter_income_needed",
+]
 
 # Download settings
 DOWNLOAD_SETTINGS = {

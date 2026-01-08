@@ -535,3 +535,330 @@ def fct_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
             ),
         }
     )
+
+
+@asset(
+    group_name="transforms",
+    description="Transform Market Heat Index data with YoY/MoM trends",
+    deps=["zillow_raw_files"],
+    compute_kind="polars",
+)
+def fct_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Fact table for Market Heat Index (0-100 scale).
+
+    Reads raw market_temp_index CSV files and transforms them into a normalized format
+    with YoY and MoM change calculations.
+    """
+    import re
+
+    heat_dir = Path("data/market_temp_index")
+
+    if not heat_dir.exists():
+        context.log.warning(f"Market Heat Index directory not found: {heat_dir}")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    csv_files = list(heat_dir.glob("*.csv"))
+    if not csv_files:
+        context.log.warning("No market heat index files found")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    context.log.info(f"Processing {len(csv_files)} market heat index files...")
+
+    all_dfs = []
+
+    for file_path in csv_files:
+        context.log.info(f"Reading {file_path.name}...")
+
+        df = pl.read_csv(file_path)
+
+        # Extract geography level from filename
+        filename = file_path.name
+        if filename.startswith("Metro_"):
+            geo_level = "Metro"
+        elif filename.startswith("State_"):
+            geo_level = "State"
+        elif filename.startswith("County_"):
+            geo_level = "County"
+        elif filename.startswith("Zip_"):
+            geo_level = "Zip"
+        else:
+            geo_level = "National"
+
+        # Identify columns
+        meta_cols = []
+        for col in ["RegionID", "SizeRank", "RegionName", "RegionType", "StateName"]:
+            if col in df.columns:
+                meta_cols.append(col)
+
+        # Get date columns (YYYY-MM-DD format)
+        date_cols = [c for c in df.columns if c not in meta_cols and re.match(r"^\d{4}-\d{2}-\d{2}$", c)]
+
+        if not date_cols:
+            context.log.warning(f"No date columns found in {file_path.name}")
+            continue
+
+        # Melt to long format
+        melted = df.unpivot(
+            index=meta_cols,
+            on=date_cols,
+            variable_name="date",
+            value_name="heat_index",
+        )
+
+        # Add metadata columns
+        melted = melted.with_columns([
+            pl.col("RegionID").cast(pl.Utf8).alias("region_id"),
+            pl.lit(geo_level).alias("geography_level"),
+            pl.col("heat_index").cast(pl.Float64),
+        ])
+
+        # Select final columns
+        final_cols = [
+            "region_id",
+            "date",
+            "heat_index",
+            "geography_level",
+        ]
+
+        all_dfs.append(melted.select(final_cols))
+
+    if not all_dfs:
+        context.log.warning("No data processed from market heat index files")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    # Combine all dataframes
+    combined = pl.concat(all_dfs)
+
+    # Remove nulls and sort
+    combined = combined.filter(
+        pl.col("heat_index").is_not_null()
+    ).sort(["region_id", "date"])
+
+    # Calculate MoM and YoY changes
+    partition_cols = ["region_id"]
+
+    df_transformed = (
+        combined
+        .with_columns([
+            pl.col("heat_index")
+            .shift(1)
+            .over(partition_cols)
+            .alias("prev_month"),
+
+            pl.col("heat_index")
+            .shift(12)
+            .over(partition_cols)
+            .alias("prev_year"),
+        ])
+        .with_columns([
+            (pl.col("heat_index") - pl.col("prev_month")).round(2).alias("mom_change"),
+            (pl.col("heat_index") - pl.col("prev_year")).round(2).alias("yoy_change"),
+
+            # Market classification based on heat index
+            pl.when(pl.col("heat_index") >= 80)
+            .then(pl.lit("Hot"))
+            .when(pl.col("heat_index") >= 60)
+            .then(pl.lit("Warm"))
+            .when(pl.col("heat_index") >= 40)
+            .then(pl.lit("Balanced"))
+            .when(pl.col("heat_index") >= 20)
+            .then(pl.lit("Cool"))
+            .otherwise(pl.lit("Cold"))
+            .alias("market_temperature"),
+        ])
+        .drop(["prev_month", "prev_year"])
+    )
+
+    # Save to parquet
+    output_path = PROCESSED_DIR / "fct_market_heat_index.parquet"
+    df_transformed.write_parquet(output_path)
+
+    context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
+
+    return MaterializeResult(
+        metadata={
+            "row_count": MetadataValue.int(len(df_transformed)),
+            "columns": MetadataValue.json(df_transformed.columns),
+            "geography_levels": MetadataValue.json(
+                df_transformed["geography_level"].unique().to_list()
+            ),
+            "date_range": MetadataValue.text(
+                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
+            ),
+        }
+    )
+
+
+@asset(
+    group_name="transforms",
+    description="Transform affordability metrics (mortgage payments, income needed)",
+    deps=["zillow_raw_files"],
+    compute_kind="polars",
+)
+def fct_affordability_metrics(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Fact table for affordability metrics.
+
+    Combines:
+    - Mortgage payments (5%, 10%, 20% down payment)
+    - Total monthly payments
+    - New homeowner income needed
+    - New renter income needed
+    """
+    import re
+
+    data_dir = Path("data")
+    categories = [
+        ("mortgage_payment", "mortgage_payment"),
+        ("total_monthly_payment", "total_monthly_payment"),
+        ("new_homeowner_income_needed", "homeowner_income_needed"),
+        ("new_renter_income_needed", "renter_income_needed"),
+    ]
+
+    all_dfs = []
+
+    for category_dir, metric_type in categories:
+        cat_path = data_dir / category_dir
+
+        if not cat_path.exists():
+            context.log.warning(f"Category directory not found: {cat_path}")
+            continue
+
+        csv_files = list(cat_path.glob("*.csv"))
+        if not csv_files:
+            context.log.warning(f"No CSV files in {cat_path}")
+            continue
+
+        context.log.info(f"Processing {len(csv_files)} files from {category_dir}...")
+
+        for file_path in csv_files:
+            context.log.info(f"Reading {file_path.name}...")
+
+            df = pl.read_csv(file_path)
+            filename = file_path.name
+
+            # Extract geography level
+            if filename.startswith("Metro_"):
+                geo_level = "Metro"
+            elif filename.startswith("State_"):
+                geo_level = "State"
+            elif filename.startswith("County_"):
+                geo_level = "County"
+            elif filename.startswith("Zip_"):
+                geo_level = "Zip"
+            else:
+                geo_level = "National"
+
+            # Extract down payment percentage from filename
+            down_payment_match = re.search(r"downpayment_(\d+\.\d+)", filename)
+            down_payment_pct = float(down_payment_match.group(1)) * 100 if down_payment_match else None
+
+            # Identify columns
+            meta_cols = []
+            for col in ["RegionID", "SizeRank", "RegionName", "RegionType", "StateName"]:
+                if col in df.columns:
+                    meta_cols.append(col)
+
+            # Get date columns
+            date_cols = [c for c in df.columns if c not in meta_cols and re.match(r"^\d{4}-\d{2}-\d{2}$", c)]
+
+            if not date_cols:
+                context.log.warning(f"No date columns found in {file_path.name}")
+                continue
+
+            # Melt to long format
+            melted = df.unpivot(
+                index=meta_cols,
+                on=date_cols,
+                variable_name="date",
+                value_name="value",
+            )
+
+            # Add metadata columns
+            melted = melted.with_columns([
+                pl.col("RegionID").cast(pl.Utf8).alias("region_id"),
+                pl.lit(geo_level).alias("geography_level"),
+                pl.lit(metric_type).alias("metric_type"),
+                pl.lit(down_payment_pct).alias("down_payment_pct"),
+                pl.col("value").cast(pl.Float64),
+            ])
+
+            # Select final columns
+            final_cols = [
+                "region_id",
+                "date",
+                "value",
+                "geography_level",
+                "metric_type",
+                "down_payment_pct",
+            ]
+
+            all_dfs.append(melted.select(final_cols))
+
+    if not all_dfs:
+        context.log.warning("No affordability data processed")
+        return MaterializeResult(metadata={"status": "no_data"})
+
+    # Combine all dataframes
+    combined = pl.concat(all_dfs)
+
+    # Remove nulls and sort
+    combined = combined.filter(
+        pl.col("value").is_not_null()
+    ).sort(["region_id", "metric_type", "down_payment_pct", "date"])
+
+    # Calculate MoM and YoY changes
+    partition_cols = ["region_id", "metric_type", "down_payment_pct"]
+
+    df_transformed = (
+        combined
+        .with_columns([
+            pl.col("value")
+            .shift(1)
+            .over(partition_cols)
+            .alias("prev_month"),
+
+            pl.col("value")
+            .shift(12)
+            .over(partition_cols)
+            .alias("prev_year"),
+        ])
+        .with_columns([
+            (
+                (pl.col("value") - pl.col("prev_month"))
+                / pl.col("prev_month")
+                * 100
+            ).round(2).alias("mom_change_pct"),
+
+            (
+                (pl.col("value") - pl.col("prev_year"))
+                / pl.col("prev_year")
+                * 100
+            ).round(2).alias("yoy_change_pct"),
+        ])
+        .drop(["prev_month", "prev_year"])
+    )
+
+    # Save to parquet
+    output_path = PROCESSED_DIR / "fct_affordability_metrics.parquet"
+    df_transformed.write_parquet(output_path)
+
+    context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
+
+    return MaterializeResult(
+        metadata={
+            "row_count": MetadataValue.int(len(df_transformed)),
+            "columns": MetadataValue.json(df_transformed.columns),
+            "geography_levels": MetadataValue.json(
+                df_transformed["geography_level"].unique().to_list()
+            ),
+            "metric_types": MetadataValue.json(
+                df_transformed["metric_type"].unique().to_list()
+            ),
+            "date_range": MetadataValue.text(
+                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
+            ),
+        }
+    )
+
