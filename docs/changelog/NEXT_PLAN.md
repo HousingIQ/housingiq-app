@@ -6,56 +6,41 @@ This document outlines the planned features and components for upcoming developm
 
 ---
 
-## Phase 2: Market Heat & Affordability (Priority: HIGH)
+## ~~Phase 2: Market Heat & Affordability~~ ✅ COMPLETED
 
-**Timeline:** 1-2 weeks  
+**Completed:** 2026-01-08  
 **Data Required:** `market_temp_index`, `mortgage_payment`, `total_monthly_payment`, `new_homeowner_income_needed`, `new_renter_income_needed`
 
-### 2.1 Download New Data Categories
+### 2.1 Download New Data Categories ✅
 
-Add to `DEFAULT_CATEGORIES` in `/data-platform/ingestion/sources/zillow/config.py`:
-- `market_temp_index` - Zillow Market Heat Index
-- `mortgage_payment` - Monthly mortgage payments (5%, 10%, 20% down)
-- `total_monthly_payment` - Total housing cost including taxes/insurance
-- `new_homeowner_income_needed` - Income required to buy
-- `new_renter_income_needed` - Income required to rent
+Added to `DEFAULT_CATEGORIES` in `/data-platform/ingestion/sources/zillow/config.py`:
+- ✅ `market_temp_index` - Zillow Market Heat Index
+- ✅ `mortgage_payment` - Monthly mortgage payments (5%, 10%, 20% down)
+- ✅ `total_monthly_payment` - Total housing cost including taxes/insurance
+- ✅ `new_homeowner_income_needed` - Income required to buy
+- ✅ `new_renter_income_needed` - Income required to rent
 
-### 2.2 Market Pulse Dashboard
+### 2.2 Market Pulse Dashboard ✅
 
 **Route:** `/dashboard/market-pulse`
 
-| Component | Description |
-|-----------|-------------|
-| `MarketHeatMap` | US map colored by heat index (react-simple-maps) |
-| `MarketTemperatureGauge` | 0-100 temperature visualization |
-| `HottestMarketsTable` | Top 10 hottest markets |
-| `CoolestMarketsTable` | Top 10 coolest markets |
-| `HeatTrendChart` | Historical heat index over time |
+| Component | Status | Description |
+|-----------|--------|-------------|
+| `MarketTemperatureGauge` | ✅ Done | 0-100 temperature visualization |
+| `HottestMarketsTable` | ✅ Done | Top 10 hottest markets |
+| `CoolestMarketsTable` | ✅ Done | Top 10 coolest markets |
+| `HeatTrendChart` | 📋 Deferred | Historical heat index over time |
 
-**Features:**
-- Real-time market temperature scores
-- "Buy Now" vs "Wait" recommendations
-- Heat index trend visualization
-- Geographic heat distribution
-
-### 2.3 Affordability Calculator
+### 2.3 Affordability Calculator ✅
 
 **Route:** `/dashboard/affordability`
 
-| Component | Description |
-|-----------|-------------|
-| `AffordabilityCalculator` | Interactive cost breakdown |
-| `RentVsBuyComparison` | Side-by-side cost analysis |
-| `IncomeRequirementCard` | Required income to buy/rent |
-| `BreakEvenAnalysis` | Years to break even buying vs renting |
-| `DownPaymentScenarios` | Compare 5%, 10%, 20% down options |
-
-**Features:**
-- Location-based calculations
-- Down payment slider (5%-20%)
-- Monthly payment breakdown (P&I, taxes, insurance, PMI)
-- Income requirement check
-- Rent vs Buy comparison with break-even timeline
+| Component | Status | Description |
+|-----------|--------|-------------|
+| `AffordabilityCalculator` | ✅ Done | Interactive cost breakdown |
+| `RentVsBuyComparison` | ✅ Done | Side-by-side cost analysis |
+| `IncomeRequirementCard` | ✅ Done | Required income to buy/rent |
+| `DownPaymentScenarios` | ✅ Done | Compare 5%, 10%, 20% down options |
 
 ---
 
@@ -216,15 +201,11 @@ Add to `DEFAULT_CATEGORIES`:
 | `zhvi` | ✅ Active | `app.zhvi_values`, `app.regions` |
 | `zori` | ✅ Active | `app.zori_values` |
 | `invt_fs` | ✅ Active | `app.inventory_values` |
-
-### Planned for Phase 2 📋
-| Category | Files | Description |
-|----------|-------|-------------|
-| `market_temp_index` | Metro only | Market heat index (0-100) |
-| `mortgage_payment` | Metro, State, County | Monthly mortgage by down payment |
-| `total_monthly_payment` | Metro, State, County | Total housing cost |
-| `new_homeowner_income_needed` | Metro | Income required to buy |
-| `new_renter_income_needed` | Metro | Income required to rent |
+| `market_temp_index` | ✅ Active | `app.market_heat_index` |
+| `mortgage_payment` | ✅ Active | `app.affordability_metrics` |
+| `total_monthly_payment` | ✅ Active | `app.affordability_metrics` |
+| `new_homeowner_income_needed` | ✅ Active | `app.affordability_metrics` |
+| `new_renter_income_needed` | ✅ Active | `app.affordability_metrics` |
 
 ### Planned for Phase 3 📋
 | Category | Files | Description |
@@ -253,25 +234,18 @@ Add to `DEFAULT_CATEGORIES`:
 
 ## Next Immediate Steps
 
-1. **Download Phase 2 Data**
+1. **Load Phase 2 Data to PostgreSQL**
    ```bash
-   # Update config.py DEFAULT_CATEGORIES
-   DEFAULT_CATEGORIES = ["zhvi", "zori", "invt_fs", "market_temp_index", "mortgage_payment", "total_monthly_payment", "new_homeowner_income_needed", "new_renter_income_needed"]
-   
-   # Run download
    cd data-platform
-   make download
+   dagster asset materialize -m housingiq_dagster --select app_market_heat_index app_affordability_metrics
    ```
 
-2. **Create Transformers for New Data**
-   - `fct_market_heat_index`
-   - `fct_affordability_metrics`
+2. **Download Phase 3 Forecast Data**
+   - `zhvf_growth` - Home value forecasts
+   - `zorf_growth` - Rent forecasts
+   - `zordi` - Renter demand index
 
-3. **Build Market Pulse Dashboard**
-   - Start with heat map visualization
-   - Add temperature gauge component
-
-4. **Build Affordability Calculator**
-   - Interactive payment breakdown
-   - Rent vs Buy comparison
+3. **Build Forecast Dashboard**
+   - Forecast charts with confidence bands
+   - Supply/demand enhancements
 

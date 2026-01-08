@@ -1,6 +1,115 @@
 # HousingIQ Changelog
 
-## [Unreleased] - 2026-01-04
+## [Unreleased] - 2026-01-08
+
+### Phase 2: Market Pulse & Affordability Calculator
+
+#### 🆕 New Data Categories Downloaded
+- `market_temp_index` - Market Heat Index (0-100 scale)
+- `mortgage_payment` - Monthly mortgage payments (5%, 10%, 20% down)
+- `total_monthly_payment` - Total housing cost including taxes/insurance
+- `new_homeowner_income_needed` - Income required to buy
+- `new_renter_income_needed` - Income required to rent
+
+#### 🆕 New Dagster Transform Assets
+
+| Asset | Description | Output |
+|-------|-------------|--------|
+| `fct_market_heat_index` | Heat index with YoY/MoM, market temperature classification | 85,844 rows |
+| `fct_affordability_metrics` | Combined mortgage, payment, income data | 3.3M rows |
+
+#### 🆕 New Dagster Database Loading Assets
+
+| Asset | PostgreSQL Table |
+|-------|-----------------|
+| `app_market_heat_index` | `app.market_heat_index` |
+| `app_affordability_metrics` | `app.affordability_metrics` |
+
+#### 🆕 New Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Market Pulse | `/dashboard/market-pulse` | National temperature gauge, hottest/coolest markets |
+| Affordability Calculator | `/dashboard/affordability` | Income calculator, rent vs buy, down payment scenarios |
+
+#### 🆕 New API Routes
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/market/heat` | GET | Market heat index, hottest/coolest markets |
+| `/api/market/affordability` | GET | Affordability metrics by region and down payment |
+
+#### 📝 Modified Files
+
+##### Database Schema
+- **`/webapp/src/lib/db/schema.ts`**
+  - Added `marketHeatIndex` table with heat_index, market_temperature
+  - Added `affordabilityMetrics` table with metric_type, down_payment_pct
+  - Added type exports: `MarketHeatIndexValue`, `AffordabilityMetric`
+
+##### Dashboard Layout
+- **`/webapp/src/app/dashboard/layout.tsx`**
+  - Added "Market Pulse" navigation link
+  - Added "Affordability" navigation link
+
+##### Data Platform - Asset Exports
+- **`/data-platform/housingiq_dagster/assets/__init__.py`**
+  - Added exports for all new transform and database assets
+
+#### 🆕 New Components
+
+| Component | Location | Description |
+|-----------|----------|-------------|
+| Slider | `/webapp/src/components/ui/slider.tsx` | Income slider for affordability calculator |
+
+---
+
+### Database Changes (Phase 2)
+
+#### New Table: `app.market_heat_index`
+```sql
+CREATE TABLE app.market_heat_index (
+  region_id VARCHAR(100),
+  date DATE,
+  heat_index REAL,
+  geography_level VARCHAR(50),
+  mom_change REAL,
+  yoy_change REAL,
+  market_temperature VARCHAR(20)
+);
+```
+
+#### New Table: `app.affordability_metrics`
+```sql
+CREATE TABLE app.affordability_metrics (
+  region_id VARCHAR(100),
+  date DATE,
+  value REAL,
+  geography_level VARCHAR(50),
+  metric_type VARCHAR(50),
+  down_payment_pct REAL,
+  mom_change_pct REAL,
+  yoy_change_pct REAL
+);
+```
+
+---
+
+### How to Activate Phase 2 Features
+
+1. **Load data to PostgreSQL:**
+   ```bash
+   cd data-platform
+   dagster asset materialize -m housingiq_dagster --select app_market_heat_index app_affordability_metrics
+   ```
+
+2. **Access New Pages:**
+   - Market Pulse: http://localhost:3000/dashboard/market-pulse
+   - Affordability: http://localhost:3000/dashboard/affordability
+
+---
+
+## [Previous] - 2026-01-04
 
 ### Phase 1A & 1B: Enhanced Features & Inventory Dashboard
 

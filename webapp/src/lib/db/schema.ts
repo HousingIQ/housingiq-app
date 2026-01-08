@@ -107,6 +107,29 @@ export const inventoryValues = appSchema.table('inventory_values', {
   yoyChangePct: real('yoy_change_pct'),
 });
 
+// Market Heat Index table (market temperature over time) - loaded by data platform
+export const marketHeatIndex = appSchema.table('market_heat_index', {
+  regionId: varchar('region_id', { length: 100 }),
+  date: date('date'),
+  heatIndex: real('heat_index'),
+  geographyLevel: varchar('geography_level', { length: 50 }),
+  momChange: real('mom_change'),
+  yoyChange: real('yoy_change'),
+  marketTemperature: varchar('market_temperature', { length: 20 }),
+});
+
+// Affordability Metrics table (mortgage payments, income needed) - loaded by data platform
+export const affordabilityMetrics = appSchema.table('affordability_metrics', {
+  regionId: varchar('region_id', { length: 100 }),
+  date: date('date'),
+  value: real('value'),
+  geographyLevel: varchar('geography_level', { length: 50 }),
+  metricType: varchar('metric_type', { length: 50 }),
+  downPaymentPct: real('down_payment_pct'),
+  momChangePct: real('mom_change_pct'),
+  yoyChangePct: real('yoy_change_pct'),
+});
+
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   zhviValues: many(zhviValues),
@@ -135,6 +158,22 @@ export const inventoryValuesRelations = relations(inventoryValues, ({ one }) => 
   }),
 }));
 
+// Market heat index relations
+export const marketHeatIndexRelations = relations(marketHeatIndex, ({ one }) => ({
+  region: one(regions, {
+    fields: [marketHeatIndex.regionId],
+    references: [regions.regionId],
+  }),
+}));
+
+// Affordability metrics relations
+export const affordabilityMetricsRelations = relations(affordabilityMetrics, ({ one }) => ({
+  region: one(regions, {
+    fields: [affordabilityMetrics.regionId],
+    references: [regions.regionId],
+  }),
+}));
+
 // Type exports for use in application
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -147,3 +186,6 @@ export type NewZoriValue = typeof zoriValues.$inferInsert;
 export type MarketSummary = typeof marketSummary.$inferSelect;
 export type InventoryValue = typeof inventoryValues.$inferSelect;
 export type NewInventoryValue = typeof inventoryValues.$inferInsert;
+export type MarketHeatIndexValue = typeof marketHeatIndex.$inferSelect;
+export type AffordabilityMetric = typeof affordabilityMetrics.$inferSelect;
+
