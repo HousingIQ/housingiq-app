@@ -29,6 +29,7 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "sqlalchemy>=2.0.0",
     "adbc-driver-postgresql>=1.0.0",
+    "connectorx>=0.3.0",  # For Polars read_database_uri
 ]
 
 [project.optional-dependencies]

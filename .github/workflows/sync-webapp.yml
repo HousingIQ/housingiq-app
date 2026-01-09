@@ -1,0 +1,56 @@
+name: Sync Webapp to Separate Repo
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'webapp/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout housingiq-app
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout webapp repo
+        uses: actions/checkout@v4
+        with:
+          repository: HousingIQ/webapp
+          ssh-key: ${{ secrets.WEBAPP_DEPLOY_KEY }}
+          path: target
+
+      - name: Sync webapp folder
+        run: |
+          # Remove all files in target except .git
+          find target -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+
+          # Copy webapp contents to target
+          cp -r source/webapp/* target/
+
+          # Copy hidden files if any (except .git)
+          shopt -s dotglob nullglob
+          for f in source/webapp/.*; do
+            if [[ "$(basename "$f")" != "." && "$(basename "$f")" != ".." && "$(basename "$f")" != ".git" ]]; then
+              cp -r "$f" target/
+            fi
+          done
+
+      - name: Commit and push changes
+        run: |
+          cd target
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if there are changes
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git add -A
+          git commit -m "Sync from housingiq-app@${{ github.sha }}"
+          git push

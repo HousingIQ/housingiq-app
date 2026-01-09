@@ -64,3 +64,29 @@ For datasets with 100M+ rows, Polars provides:
 - No database round-trips for intermediate results
 - Simpler debugging (pure Python)
 - Lower infrastructure costs (no dbt Cloud needed)
+
+## Github action
+  What it does:
+
+  - Triggers on push to main when files in webapp/ change
+  - Checks out both repos
+  - Syncs the webapp/ folder contents to the webapp repo
+  - Commits with a reference to the source commit SHA
+
+  Setup required:
+
+  You need to create a deploy key for the webapp repo:
+
+  1. Generate an SSH key pair:
+  ssh-keygen -t ed25519 -C "housingiq-app-sync" -f webapp-deploy-key
+  2. Add the public key to the webapp repo:
+    - Go to https://github.com/HousingIQ/webapp/settings/keys
+    - Click "Add deploy key"
+    - Paste the contents of webapp-deploy-key.pub
+    - Check "Allow write access"
+  3. Add the private key as a secret in housingiq-app:
+    - Go to https://github.com/HousingIQ/housingiq-app/settings/secrets/actions
+    - Click "New repository secret"
+    - Name: WEBAPP_DEPLOY_KEY
+    - Value: paste the contents of webapp-deploy-key
+  4. Push this workflow to housingiq-app

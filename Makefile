@@ -2,7 +2,13 @@
 # HousingIQ Root Makefile
 # Manages shared infrastructure and orchestrates sub-projects
 
-.PHONY: up down logs psql clean help setup dev webapp dagster
+# Load .env file if it exists
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
+.PHONY: up down logs psql clean help setup dev webapp dagster sync-to-neon sync-to-neon-dry
 
 # Default target
 help:
@@ -23,6 +29,10 @@ help:
 	@echo "Individual Services:"
 	@echo "  make webapp    - Start webapp only (Next.js on port 3000)"
 	@echo "  make dagster   - Start Dagster only (on port 3001)"
+	@echo ""
+	@echo "Production Sync:"
+	@echo "  make sync-to-neon     - Sync app schema to Neon (requires NEON_DATABASE_URL)"
+	@echo "  make sync-to-neon-dry - Dry run: show what would be synced"
 	@echo ""
 
 # ============================================================================
@@ -136,3 +146,23 @@ db-studio:  ## Open Drizzle Studio
 
 materialize:  ## Materialize all Dagster assets
 	cd data-platform && DAGSTER_HOME=$(PWD)/data-platform dagster asset materialize --select "*" -m housingiq_dagster.definitions
+
+# ============================================================================
+# Production Sync
+# ============================================================================
+
+sync-to-neon:  ## Sync app schema from local PostgreSQL to Neon (production)
+	@if [ -z "$$NEON_DATABASE_URL" ]; then \
+		echo "Error: NEON_DATABASE_URL environment variable not set"; \
+		echo "Usage: NEON_DATABASE_URL='postgresql://...' make sync-to-neon"; \
+		exit 1; \
+	fi
+	cd data-platform && python scripts/sync_to_neon.py
+
+sync-to-neon-dry:  ## Dry run: show what would be synced to Neon
+	@if [ -z "$$NEON_DATABASE_URL" ]; then \
+		echo "Error: NEON_DATABASE_URL environment variable not set"; \
+		echo "Usage: NEON_DATABASE_URL='postgresql://...' make sync-to-neon-dry"; \
+		exit 1; \
+	fi
+	cd data-platform && python scripts/sync_to_neon.py --dry-run

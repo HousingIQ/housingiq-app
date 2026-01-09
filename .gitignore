@@ -1,1 +1,4 @@
 .claude/
+.env
+webapp-deploy-key
+webapp-deploy-key.pub
