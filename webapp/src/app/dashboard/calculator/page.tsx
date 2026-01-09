@@ -363,13 +363,13 @@ export default function CalculatorPage() {
                       tick={{ fontSize: 12 }}
                     />
                     <Tooltip
-                      formatter={(value: number, name: string) => {
+                      formatter={(value, name) => {
                         const labels: Record<string, string> = {
                           equity: 'Equity',
                           propertyValue: 'Property Value',
                           loanBalance: 'Loan Balance',
                         };
-                        return [formatCurrency(value), labels[name] || name];
+                        return [formatCurrency(value as number), labels[name as string] || name];
                       }}
                       labelFormatter={(label) => `Year ${label}`}
                     />

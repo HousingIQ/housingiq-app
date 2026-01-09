@@ -54,7 +54,7 @@ export async function GET(
 
     // Group by date
     const dateMap = new Map<string, Record<string, number>>();
-    const latestByBedroom = new Map<number, { value: number; yoyChange: number | null }>();
+    const latestByBedroom = new Map<number, { value: number; yoyChange: number | null; date: string }>();
 
     for (const row of results) {
       if (!row.date || row.value === null || row.bedrooms === null) continue;
@@ -69,10 +69,11 @@ export async function GET(
 
       // Track latest values for stats
       const existing = latestByBedroom.get(row.bedrooms);
-      if (!existing || row.date > (existing as { date?: string }).date) {
+      if (!existing || row.date > existing.date) {
         latestByBedroom.set(row.bedrooms, {
           value: row.value,
           yoyChange: row.yoyChangePct,
+          date: row.date,
         });
       }
     }

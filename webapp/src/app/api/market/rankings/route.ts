@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, marketSummary } from '@/lib/db';
-import { eq, desc, asc, sql } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 
-// Valid sort columns
-const VALID_SORT_COLUMNS = [
-  'homeValueYoyPct',
-  'rentYoyPct',
-  'grossRentYieldPct',
-  'priceToRentRatio',
-  'currentHomeValue',
-  'currentRentValue',
-];
+// Map of valid sort columns to their Drizzle column references
+const SORT_COLUMNS = {
+  homeValueYoyPct: marketSummary.homeValueYoyPct,
+  rentYoyPct: marketSummary.rentYoyPct,
+  grossRentYieldPct: marketSummary.grossRentYieldPct,
+  priceToRentRatio: marketSummary.priceToRentRatio,
+  currentHomeValue: marketSummary.currentHomeValue,
+  currentRentValue: marketSummary.currentRentValue,
+} as const;
+
+const VALID_SORT_COLUMNS = Object.keys(SORT_COLUMNS);
 
 // Valid geography levels
 const VALID_GEOGRAPHY_LEVELS = ['State', 'Metro', 'City'];
@@ -41,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query
-    const sortColumn = marketSummary[sortBy as keyof typeof marketSummary];
+    const sortColumn = SORT_COLUMNS[sortBy as keyof typeof SORT_COLUMNS];
     const orderFn = order === 'asc' ? asc : desc;
 
     const results = await db
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest) {
       })
       .from(marketSummary)
       .where(eq(marketSummary.geographyLevel, geographyLevel))
-      .orderBy(orderFn(sortColumn as ReturnType<typeof sql>))
+      .orderBy(orderFn(sortColumn))
       .limit(limit);
 
     // Add rank numbers
