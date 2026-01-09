@@ -45,12 +45,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Check if there are changes
-          if git diff --quiet && git diff --staged --quiet; then
+          # Stage all changes first
+          git add -A
+
+          # Check if there are staged changes
+          if git diff --staged --quiet; then
             echo "No changes to commit"
             exit 0
           fi
 
-          git add -A
           git commit -m "Sync from housingiq-app@${{ github.sha }}"
           git push
