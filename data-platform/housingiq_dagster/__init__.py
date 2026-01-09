@@ -6,3 +6,7 @@ This package contains the Dagster orchestration layer including:
 - Resources for database connections and dbt
 - Schedules and sensors for automation
 """
+
+from .definitions import defs
+
+__all__ = ["defs"]
