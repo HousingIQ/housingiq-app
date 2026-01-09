@@ -100,7 +100,10 @@ CREATE TABLE app.affordability_metrics (
 1. **Load data to PostgreSQL:**
    ```bash
    cd data-platform
-   dagster asset materialize -m housingiq_dagster --select app_market_heat_index app_affordability_metrics
+   # First download raw data (if not already done)
+   dagster asset materialize -m housingiq_dagster --select zillow_manifest,zillow_raw_files
+   # Then run transforms and load to database (comma-separated, not space-separated)
+   dagster asset materialize -m housingiq_dagster --select fct_market_heat_index,fct_affordability_metrics,app_market_heat_index,app_affordability_metrics
    ```
 
 2. **Access New Pages:**
