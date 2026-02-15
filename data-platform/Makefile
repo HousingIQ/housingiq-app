@@ -39,11 +39,20 @@ gx-docs:  ## Build and open GX data docs
 scrape:  ## Scrape Zillow URLs and save manifest
 	python -c "from ingestion.sources.zillow import ZillowScraper; s=ZillowScraper(); s.save_manifest(s.generate_all_urls())"
 
-download:  ## Download Zillow data (default categories)
-	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data()"
+check-freshness:  ## Check which files need updating (dry run)
+	python scripts/check_freshness.py
 
-download-all:  ## Download all Zillow data (all categories)
-	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(categories=None)"
+check-freshness-7d:  ## Check freshness with 7-day threshold
+	python scripts/check_freshness.py --max-age 7
+
+download:  ## Download Zillow data (re-download if >30 days old)
+	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(max_age_days=30)"
+
+download-force:  ## Force re-download all Zillow data
+	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(max_age_days=0)"
+
+download-all:  ## Download all categories (not just defaults)
+	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(categories=None, max_age_days=30)"
 
 transform:  ## Transform downloaded data
 	python -c "from ingestion.sources.zillow import ZillowSource; ZillowSource().run_full_pipeline()"
@@ -79,12 +88,21 @@ typecheck:  ## Run type checker
 # =============================================================================
 
 clean:  ## Clean all generated files
-	rm -rf data/
+	rm -rf data/raw/ data/staging/ data/mart/
 	rm -rf .pytest_cache/
 	rm -rf htmlcov/
 	rm -rf .ruff_cache/
 	rm -rf .dagster/
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 
-clean-data:  ## Clean downloaded data only
-	rm -rf data/
+clean-data:  ## Clean all data layers
+	rm -rf data/raw/ data/staging/ data/mart/
+
+clean-raw:  ## Clean raw downloaded data only
+	rm -rf data/raw/
+
+clean-staging:  ## Clean staging (intermediate) data only
+	rm -rf data/staging/
+
+clean-mart:  ## Clean mart (final) data only
+	rm -rf data/mart/

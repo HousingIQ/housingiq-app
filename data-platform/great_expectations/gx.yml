@@ -14,7 +14,7 @@ datasources:
     data_connectors:
       default_inferred_data_connector_name:
         class_name: InferredAssetFilesystemDataConnector
-        base_directory: ../data/processed
+        base_directory: ../data/mart
         default_regex:
           pattern: (.*)\.parquet
           group_names:

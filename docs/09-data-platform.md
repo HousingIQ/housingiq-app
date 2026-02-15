@@ -30,19 +30,42 @@ data-platform/
 ├── ingestion/                      # Data extraction
 │   └── sources/
 │       └── zillow/                 # Zillow-specific logic
-│           ├── downloader.py
-│           ├── transformer.py
-│           └── schemas.py
+│           ├── __init__.py
+│           ├── config.py           # URL patterns, categories, settings
+│           ├── scraper.py          # URL generation from patterns
+│           ├── downloader.py       # Parallel CSV downloader
+│           ├── transformer.py      # CSV → Parquet transformation
+│           └── schemas.py          # Pydantic data models
 │
 ├── great_expectations/             # Data quality
-│   ├── great_expectations.yml
+│   ├── gx.yml                     # GX configuration
 │   ├── checkpoints/
+│   │   └── zillow_checkpoint.yml
 │   └── expectations/
+│       ├── zillow_regions_suite.json
+│       ├── zillow_zhvi_values_suite.json
+│       └── zillow_zori_values_suite.json
 │
-├── data/                           # Local data storage
-│   └── processed/                  # Parquet files
+├── scripts/
+│   └── sync_to_neon.py            # Production DB sync
 │
 ├── tests/                          # Python tests
+│   ├── conftest.py
+│   ├── test_zillow_scraper.py
+│   ├── test_zillow_transformer.py
+│   └── test_zillow_schemas.py
+│
+├── data/                           # Local data storage (gitignored)
+│   ├── zhvi/                       # Raw ZHVI CSVs
+│   ├── zori/                       # Raw ZORI CSVs
+│   ├── invt_fs/                    # Raw inventory CSVs
+│   ├── market_temp_index/          # Raw market heat CSVs
+│   ├── mortgage_payment/           # Raw mortgage payment CSVs
+│   ├── total_monthly_payment/      # Raw total payment CSVs
+│   ├── new_homeowner_income_needed/ # Raw homeowner income CSVs
+│   ├── new_renter_income_needed/   # Raw renter income CSVs
+│   └── processed/                  # Transformed Parquet files
+│
 ├── pyproject.toml                  # Dependencies
 ├── dagster.yaml                    # Dagster config
 └── Makefile                        # Commands
@@ -52,7 +75,7 @@ data-platform/
 
 ```mermaid
 graph TD
-    subgraph Ingestion
+    subgraph Ingestion["Zillow Ingestion"]
         Z[Zillow CSVs] --> M[zillow_manifest]
         M --> R[zillow_raw_files]
         R --> TZ[zillow_zhvi_transformed]
@@ -60,9 +83,12 @@ graph TD
     end
 
     subgraph Transform["Polars Transformations"]
+        TZ --> DR[dim_regions]
         TZ --> FZ[fct_zhvi_values]
         TR --> FR[fct_zori_values]
-        TZ --> DR[dim_regions]
+        R --> FI[fct_inventory_values]
+        R --> FH[fct_market_heat_index]
+        R --> FA[fct_affordability_metrics]
         FZ --> MS[market_summary]
         FR --> MS
         DR --> MS
@@ -72,6 +98,9 @@ graph TD
         DR --> AR[app.regions]
         FZ --> AZ[app.zhvi_values]
         FR --> AO[app.zori_values]
+        FI --> AI[app.inventory_values]
+        FH --> AH[app.market_heat_index]
+        FA --> AA[app.affordability_metrics]
         MS --> AM[app.market_summary]
     end
 ```
@@ -84,32 +113,72 @@ Downloads and transforms Zillow CSV data to Parquet files.
 
 | Asset | Description |
 |-------|-------------|
-| `zillow_manifest` | Scrapes Zillow data URLs |
-| `zillow_raw_files` | Downloads CSV files |
-| `zillow_zhvi_transformed` | Transforms ZHVI to Parquet |
-| `zillow_zori_transformed` | Transforms ZORI to Parquet |
+| `zillow_manifest` | Scrapes Zillow data URLs from configured patterns |
+| `zillow_raw_files` | Downloads CSV files for configured categories |
+| `zillow_zhvi_transformed` | Transforms ZHVI CSVs to normalized Parquet |
+| `zillow_zori_transformed` | Transforms ZORI CSVs to normalized Parquet |
+
+**Configured download categories** (from `ingestion/sources/zillow/config.py`):
+
+| Category | Description |
+|----------|-------------|
+| `zhvi` | Zillow Home Value Index |
+| `zori` | Zillow Observed Rent Index |
+| `invt_fs` | For-Sale Inventory |
+| `market_temp_index` | Market Heat Index |
+| `mortgage_payment` | Mortgage Payment Estimates |
+| `total_monthly_payment` | Total Monthly Payment Estimates |
+| `new_homeowner_income_needed` | Income Required (Homeowner) |
+| `new_renter_income_needed` | Income Required (Renter) |
 
 ### 2. Transforms (`transforms.py`)
 
 Polars-based transformations with YoY/MoM calculations.
 
-| Asset | Description |
-|-------|-------------|
-| `fct_zhvi_values` | ZHVI fact table with change metrics |
-| `fct_zori_values` | ZORI fact table with change metrics |
-| `dim_regions` | Geographic dimension table |
-| `market_summary` | Pre-computed market overview |
+| Asset | Depends On | Description |
+|-------|-----------|-------------|
+| `dim_regions` | `zillow_zhvi_transformed` | Geographic dimension table with display names |
+| `fct_zhvi_values` | `zillow_zhvi_transformed` | ZHVI fact table with MoM/YoY change metrics |
+| `fct_zori_values` | `zillow_zori_transformed` | ZORI fact table with MoM/YoY change metrics |
+| `fct_inventory_values` | `zillow_raw_files` | Inventory fact table from raw CSVs |
+| `fct_market_heat_index` | `zillow_raw_files` | Market heat index (0-100) with temperature classification |
+| `fct_affordability_metrics` | `zillow_raw_files` | Mortgage payments, income needed metrics |
+| `market_summary` | `fct_zhvi_values`, `fct_zori_values`, `dim_regions` | Pre-computed market overview for dashboard |
 
 ### 3. Database Loading (`database.py`)
 
-Loads final tables to PostgreSQL for the webapp.
+Loads final tables to PostgreSQL for the webapp using Polars ADBC bulk insert.
 
-| Asset | Target Table |
-|-------|--------------|
-| `app_regions` | `app.regions` |
-| `app_zhvi_values` | `app.zhvi_values` |
-| `app_zori_values` | `app.zori_values` |
-| `app_market_summary` | `app.market_summary` |
+| Asset | Target Table | Source |
+|-------|--------------|--------|
+| `app_regions` | `app.regions` | `dim_regions` |
+| `app_zhvi_values` | `app.zhvi_values` | `fct_zhvi_values` |
+| `app_zori_values` | `app.zori_values` | `fct_zori_values` |
+| `app_inventory_values` | `app.inventory_values` | `fct_inventory_values` |
+| `app_market_heat_index` | `app.market_heat_index` | `fct_market_heat_index` |
+| `app_affordability_metrics` | `app.affordability_metrics` | `fct_affordability_metrics` |
+| `app_market_summary` | `app.market_summary` | `market_summary` |
+
+## Schedules
+
+Defined in `schedules.py`. All schedules default to `STOPPED` and must be enabled manually.
+
+| Schedule | Cron | Description |
+|----------|------|-------------|
+| `weekly_zillow_refresh` | `0 2 * * 0` (Sun 2 AM) | Re-download Zillow CSVs |
+| `daily_database_load` | `0 3 * * *` (daily 3 AM) | Load transformed data to PostgreSQL |
+| `monthly_full_refresh` | `0 1 1 * *` (1st of month 1 AM) | Full pipeline: download + transform + load |
+
+## Sensors
+
+Defined in `sensors.py`. Event-driven triggers for automated execution.
+
+| Sensor | Type | Description |
+|--------|------|-------------|
+| `new_csv_sensor` | File-based | Triggers when new CSVs appear in `data/` (checks every 5 min) |
+| `zhvi_transformed_sensor` | Asset-based | Triggers DB load when ZHVI transform completes |
+| `zori_transformed_sensor` | Asset-based | Triggers DB load when ZORI transform completes |
+| `data_freshness_sensor` | Health check | Alerts when processed data is older than 7 days (checks hourly) |
 
 ## Why Polars Instead of dbt?
 
@@ -175,18 +244,18 @@ DATA_DIR=data  # Local data directory
 ```python
 df_transformed = (
     df
-    .sort(["region_id", "date"])
+    .sort(["region_id", "home_type", "tier", "bedrooms", "date"])
     .with_columns([
         # Previous month value
         pl.col("value")
         .shift(1)
-        .over(["region_id"])
+        .over(partition_cols)
         .alias("prev_month_value"),
 
         # Previous year value (12 months ago)
         pl.col("value")
         .shift(12)
-        .over(["region_id"])
+        .over(partition_cols)
         .alias("prev_year_value"),
     ])
     .with_columns([
@@ -210,12 +279,21 @@ df_transformed = (
 ### Market Classification
 
 ```python
+# market_summary: based on YoY home value change
 pl.when(pl.col("home_value_yoy_pct") > 10)
 .then(pl.lit("Hot"))
 .when(pl.col("home_value_yoy_pct") >= 3)
 .then(pl.lit("Warm"))
 .otherwise(pl.lit("Cold"))
 .alias("market_classification")
+
+# market_heat_index: based on heat index (0-100 scale)
+pl.when(pl.col("heat_index") >= 80).then(pl.lit("Hot"))
+.when(pl.col("heat_index") >= 60).then(pl.lit("Warm"))
+.when(pl.col("heat_index") >= 40).then(pl.lit("Balanced"))
+.when(pl.col("heat_index") >= 20).then(pl.lit("Cool"))
+.otherwise(pl.lit("Cold"))
+.alias("market_temperature")
 ```
 
 ## Testing
