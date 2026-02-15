@@ -6,14 +6,19 @@ Migrated from zillow_data_sc/downloader.py with improvements:
 - Type hints throughout
 - Configuration from config.py
 - Structured logging
+- Staleness-aware downloads (re-download files older than max_age_days)
+- HTTP HEAD checks to detect remotely updated files
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,6 +29,8 @@ from .config import DEFAULT_CATEGORIES, DOWNLOAD_SETTINGS
 if TYPE_CHECKING:
     pass
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class DownloadStats:
@@ -33,6 +40,7 @@ class DownloadStats:
     success: int = 0
     failed: int = 0
     skipped: int = 0
+    updated: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -40,6 +48,7 @@ class DownloadStats:
             "success": self.success,
             "failed": self.failed,
             "skipped": self.skipped,
+            "updated": self.updated,
         }
 
 
@@ -49,9 +58,36 @@ class DownloadResult:
 
     filename: str
     category: str
-    status: str  # 'success', 'failed', 'skipped'
+    status: str  # 'success', 'failed', 'skipped', 'updated'
     path: str | None = None
     error: str | None = None
+    local_modified: str | None = None
+    remote_modified: str | None = None
+
+
+@dataclass
+class FreshnessCheck:
+    """Result of checking whether a file needs updating."""
+
+    filename: str
+    category: str
+    url: str
+    local_path: Path | None = None
+    exists_locally: bool = False
+    local_modified: datetime | None = None
+    remote_modified: datetime | None = None
+    local_size: int | None = None
+    remote_size: int | None = None
+    needs_update: bool = True
+    reason: str = "new"
+
+    @property
+    def local_age_days(self) -> float | None:
+        """Days since local file was last modified."""
+        if self.local_modified is None:
+            return None
+        delta = datetime.now(tz=timezone.utc) - self.local_modified
+        return delta.total_seconds() / 86400
 
 
 class ZillowDownloader:
@@ -59,10 +95,11 @@ class ZillowDownloader:
 
     def __init__(
         self,
-        output_dir: Path | str = "data",
+        output_dir: Path | str = "data/raw",
         max_concurrent: int | None = None,
         timeout: int | None = None,
-        skip_existing: bool = True,
+        skip_existing: bool = False,
+        max_age_days: int | None = 30,
     ) -> None:
         """
         Initialize downloader.
@@ -71,7 +108,10 @@ class ZillowDownloader:
             output_dir: Directory to save downloaded files
             max_concurrent: Max concurrent downloads (default from config)
             timeout: Request timeout in seconds (default from config)
-            skip_existing: Skip files that already exist
+            skip_existing: Skip files that already exist (ignores staleness)
+            max_age_days: Re-download files older than this many days.
+                          Set to None to always re-download.
+                          Ignored when skip_existing=True.
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -79,11 +119,157 @@ class ZillowDownloader:
         self.max_concurrent = max_concurrent or DOWNLOAD_SETTINGS["max_concurrent"]
         self.timeout = timeout or DOWNLOAD_SETTINGS["timeout"]
         self.skip_existing = skip_existing
+        self.max_age_days = max_age_days
         self.retry_attempts = DOWNLOAD_SETTINGS["retry_attempts"]
         self.retry_delay = DOWNLOAD_SETTINGS["retry_delay"]
 
         self.stats = DownloadStats()
         self._results: list[DownloadResult] = []
+
+    def _is_file_stale(self, file_path: Path) -> bool:
+        """
+        Check if a local file is stale based on max_age_days.
+
+        Args:
+            file_path: Path to the local file
+
+        Returns:
+            True if the file should be re-downloaded
+        """
+        if not file_path.exists():
+            return True
+
+        if self.max_age_days is None:
+            return True  # Always re-download
+
+        mtime = datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc)
+        age_days = (datetime.now(tz=timezone.utc) - mtime).total_seconds() / 86400
+        return age_days > self.max_age_days
+
+    async def check_remote_modified(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        semaphore: asyncio.Semaphore,
+    ) -> datetime | None:
+        """
+        Check the Last-Modified header of a remote file via HTTP HEAD.
+
+        Args:
+            client: HTTP client
+            url: Remote URL
+            semaphore: Concurrency limiter
+
+        Returns:
+            Remote last-modified datetime, or None if unavailable
+        """
+        async with semaphore:
+            try:
+                response = await client.head(url, timeout=10)
+                if response.status_code == 200:
+                    last_mod = response.headers.get("Last-Modified")
+                    if last_mod:
+                        return parsedate_to_datetime(last_mod)
+                    content_length = response.headers.get("Content-Length")
+                    # Return None but we at least know the file exists remotely
+                    return None
+            except Exception:
+                return None
+        return None
+
+    async def check_freshness(
+        self,
+        links: list[dict],
+    ) -> list[FreshnessCheck]:
+        """
+        Check which files need updating by comparing local and remote state.
+
+        Uses HTTP HEAD requests to get remote Last-Modified headers without
+        downloading the full files.
+
+        Args:
+            links: List of link info dictionaries
+
+        Returns:
+            List of FreshnessCheck results
+        """
+        results: list[FreshnessCheck] = []
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+        headers = {"User-Agent": DOWNLOAD_SETTINGS["user_agent"]}
+
+        async with httpx.AsyncClient(headers=headers) as client:
+            tasks = []
+            link_map: dict[str, dict] = {}
+
+            for link in links:
+                url = link["url"]
+                category = link["category"]
+                filename = link["filename"]
+                file_path = self.output_dir / category / filename
+
+                check = FreshnessCheck(
+                    filename=filename,
+                    category=category,
+                    url=url,
+                    local_path=file_path,
+                    exists_locally=file_path.exists(),
+                )
+
+                if file_path.exists():
+                    stat = file_path.stat()
+                    check.local_modified = datetime.fromtimestamp(
+                        stat.st_mtime, tz=timezone.utc
+                    )
+                    check.local_size = stat.st_size
+
+                link_map[url] = {"check": check}
+                tasks.append((url, self.check_remote_modified(client, url, semaphore)))
+
+            # Run all HEAD requests concurrently
+            for url, coro in tasks:
+                remote_mod = await coro
+                check = link_map[url]["check"]
+                check.remote_modified = remote_mod
+
+                # Determine if update is needed
+                if not check.exists_locally:
+                    check.needs_update = True
+                    check.reason = "new"
+                elif self.skip_existing:
+                    check.needs_update = False
+                    check.reason = "skip_existing"
+                elif (
+                    check.remote_modified
+                    and check.local_modified
+                    and check.remote_modified > check.local_modified
+                ):
+                    check.needs_update = True
+                    check.reason = "remote_newer"
+                elif self._is_file_stale(check.local_path):
+                    check.needs_update = True
+                    check.reason = "stale"
+                else:
+                    check.needs_update = False
+                    check.reason = "fresh"
+
+                results.append(check)
+
+        return results
+
+    def check_freshness_sync(
+        self,
+        links: list[dict],
+    ) -> list[FreshnessCheck]:
+        """
+        Synchronous wrapper for check_freshness.
+
+        Args:
+            links: List of link info dictionaries
+
+        Returns:
+            List of FreshnessCheck results
+        """
+        return asyncio.run(self.check_freshness(links))
 
     async def download_file(
         self,
@@ -110,15 +296,34 @@ class ZillowDownloader:
         category_dir.mkdir(parents=True, exist_ok=True)
         file_path = category_dir / filename
 
-        # Skip if exists
-        if self.skip_existing and file_path.exists():
-            self.stats.skipped += 1
-            return DownloadResult(
-                filename=filename,
-                category=category,
-                status="skipped",
-                path=str(file_path),
-            )
+        is_update = file_path.exists()
+        local_mod_str: str | None = None
+
+        # Determine whether to skip this file
+        if file_path.exists():
+            local_mod_str = datetime.fromtimestamp(
+                file_path.stat().st_mtime, tz=timezone.utc
+            ).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+            if self.skip_existing:
+                self.stats.skipped += 1
+                return DownloadResult(
+                    filename=filename,
+                    category=category,
+                    status="skipped",
+                    path=str(file_path),
+                    local_modified=local_mod_str,
+                )
+
+            if not self._is_file_stale(file_path):
+                self.stats.skipped += 1
+                return DownloadResult(
+                    filename=filename,
+                    category=category,
+                    status="skipped",
+                    path=str(file_path),
+                    local_modified=local_mod_str,
+                )
 
         async with semaphore:
             for attempt in range(self.retry_attempts):
@@ -129,12 +334,31 @@ class ZillowDownloader:
                     # Write content
                     file_path.write_bytes(response.content)
 
-                    self.stats.success += 1
+                    # Get remote Last-Modified for logging
+                    remote_mod_str: str | None = None
+                    last_mod = response.headers.get("Last-Modified")
+                    if last_mod:
+                        try:
+                            remote_mod_str = parsedate_to_datetime(
+                                last_mod
+                            ).strftime("%Y-%m-%d %H:%M:%S UTC")
+                        except Exception:
+                            pass
+
+                    if is_update:
+                        self.stats.updated += 1
+                        status = "updated"
+                    else:
+                        self.stats.success += 1
+                        status = "success"
+
                     return DownloadResult(
                         filename=filename,
                         category=category,
-                        status="success",
+                        status=status,
                         path=str(file_path),
+                        local_modified=local_mod_str,
+                        remote_modified=remote_mod_str,
                     )
 
                 except httpx.HTTPStatusError as e:
@@ -302,6 +526,8 @@ class ZillowDownloader:
                     "status": r.status,
                     "path": r.path,
                     "error": r.error,
+                    "local_modified": r.local_modified,
+                    "remote_modified": r.remote_modified,
                 }
                 for r in self._results
             ],
@@ -312,9 +538,10 @@ class ZillowDownloader:
 
 
 def download_zillow_data(
-    output_dir: Path | str = "data",
+    output_dir: Path | str = "data/raw",
     categories: list[str] | None = None,
-    skip_existing: bool = True,
+    skip_existing: bool = False,
+    max_age_days: int | None = 30,
 ) -> DownloadStats:
     """
     Convenience function to download Zillow data.
@@ -322,7 +549,8 @@ def download_zillow_data(
     Args:
         output_dir: Directory to save files
         categories: Categories to download (default from config)
-        skip_existing: Skip existing files
+        skip_existing: Skip existing files entirely (ignores staleness)
+        max_age_days: Re-download files older than this. Default 30 days.
 
     Returns:
         Download statistics
@@ -335,6 +563,7 @@ def download_zillow_data(
     downloader = ZillowDownloader(
         output_dir=output_dir,
         skip_existing=skip_existing,
+        max_age_days=max_age_days,
     )
 
     return downloader.download_links(links)

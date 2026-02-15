@@ -5,13 +5,10 @@ High-performance data transformations using Polars instead of dbt.
 All transforms run in-memory with parallel processing.
 """
 
-from pathlib import Path
-
 import polars as pl
 from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, asset
 
-# Configuration
-PROCESSED_DIR = Path("data/processed")
+from ..paths import RAW_DIR, STAGING_DIR, MART_DIR
 
 
 # Geography levels to include in transforms (exclude Zip/Neighborhood for memory)
@@ -34,7 +31,7 @@ def fct_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
 
     Note: Filters to State/Metro/County/City levels to keep memory usage manageable.
     """
-    values_path = PROCESSED_DIR / "zhvi_values.parquet"
+    values_path = STAGING_DIR / "zhvi_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Values file not found: {values_path}")
@@ -87,7 +84,8 @@ def fct_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
     )
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "fct_zhvi_values.parquet"
+    MART_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = MART_DIR / "fct_zhvi_values.parquet"
     df_transformed.write_parquet(output_path)
 
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
@@ -113,7 +111,7 @@ def fct_zori_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Fact table for ZORI (rent) values with derived metrics.
     """
-    values_path = PROCESSED_DIR / "zori_values.parquet"
+    values_path = STAGING_DIR / "zori_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Values file not found: {values_path}")
@@ -164,7 +162,8 @@ def fct_zori_values(context: AssetExecutionContext) -> MaterializeResult:
     )
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "fct_zori_values.parquet"
+    MART_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = MART_DIR / "fct_zori_values.parquet"
     df_transformed.write_parquet(output_path)
 
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
@@ -192,7 +191,7 @@ def dim_regions(context: AssetExecutionContext) -> MaterializeResult:
 
     Note: Filters to State/Metro/County/City levels for consistency.
     """
-    regions_path = PROCESSED_DIR / "zhvi_regions.parquet"
+    regions_path = STAGING_DIR / "zhvi_regions.parquet"
 
     if not regions_path.exists():
         context.log.warning(f"Regions file not found: {regions_path}")
@@ -220,7 +219,8 @@ def dim_regions(context: AssetExecutionContext) -> MaterializeResult:
     ])
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "dim_regions.parquet"
+    MART_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = MART_DIR / "dim_regions.parquet"
     df_transformed.write_parquet(output_path)
 
     context.log.info(f"Saved {len(df_transformed):,} regions to {output_path}")
@@ -251,9 +251,9 @@ def market_summary(context: AssetExecutionContext) -> MaterializeResult:
     - Price-to-rent ratio
     - Market classification (Hot/Warm/Cold)
     """
-    zhvi_path = PROCESSED_DIR / "fct_zhvi_values.parquet"
-    zori_path = PROCESSED_DIR / "fct_zori_values.parquet"
-    regions_path = PROCESSED_DIR / "dim_regions.parquet"
+    zhvi_path = MART_DIR / "fct_zhvi_values.parquet"
+    zori_path = MART_DIR / "fct_zori_values.parquet"
+    regions_path = MART_DIR / "dim_regions.parquet"
 
     for path in [zhvi_path, zori_path, regions_path]:
         if not path.exists():
@@ -349,7 +349,7 @@ def market_summary(context: AssetExecutionContext) -> MaterializeResult:
     )
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "market_summary.parquet"
+    output_path = MART_DIR / "market_summary.parquet"
     summary.write_parquet(output_path)
 
     context.log.info(f"Saved {len(summary):,} market summaries to {output_path}")
@@ -379,7 +379,7 @@ def fct_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
 
     Reads raw inventory CSV files and transforms them into a normalized format.
     """
-    invt_dir = Path("data/invt_fs")
+    invt_dir = RAW_DIR / "invt_fs"
 
     if not invt_dir.exists():
         context.log.warning(f"Inventory directory not found: {invt_dir}")
@@ -518,7 +518,8 @@ def fct_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
     )
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "fct_inventory_values.parquet"
+    MART_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = MART_DIR / "fct_inventory_values.parquet"
     df_transformed.write_parquet(output_path)
 
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
@@ -552,7 +553,7 @@ def fct_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
     """
     import re
 
-    heat_dir = Path("data/market_temp_index")
+    heat_dir = RAW_DIR / "market_temp_index"
 
     if not heat_dir.exists():
         context.log.warning(f"Market Heat Index directory not found: {heat_dir}")
@@ -671,7 +672,8 @@ def fct_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
     )
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "fct_market_heat_index.parquet"
+    MART_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = MART_DIR / "fct_market_heat_index.parquet"
     df_transformed.write_parquet(output_path)
 
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
@@ -708,7 +710,6 @@ def fct_affordability_metrics(context: AssetExecutionContext) -> MaterializeResu
     """
     import re
 
-    data_dir = Path("data")
     categories = [
         ("mortgage_payment", "mortgage_payment"),
         ("total_monthly_payment", "total_monthly_payment"),
@@ -719,7 +720,7 @@ def fct_affordability_metrics(context: AssetExecutionContext) -> MaterializeResu
     all_dfs = []
 
     for category_dir, metric_type in categories:
-        cat_path = data_dir / category_dir
+        cat_path = RAW_DIR / category_dir
 
         if not cat_path.exists():
             context.log.warning(f"Category directory not found: {cat_path}")
@@ -841,7 +842,8 @@ def fct_affordability_metrics(context: AssetExecutionContext) -> MaterializeResu
     )
 
     # Save to parquet
-    output_path = PROCESSED_DIR / "fct_affordability_metrics.parquet"
+    MART_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = MART_DIR / "fct_affordability_metrics.parquet"
     df_transformed.write_parquet(output_path)
 
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")

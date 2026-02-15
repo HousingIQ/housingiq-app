@@ -6,7 +6,6 @@ Only final tables needed by the webapp are loaded to the database.
 """
 
 import os
-from pathlib import Path
 
 import polars as pl
 from dagster import (
@@ -16,8 +15,7 @@ from dagster import (
     asset,
 )
 
-# Configuration
-PROCESSED_DIR = Path("data/processed")
+from ..paths import MART_DIR
 
 
 def get_postgres_connection_string() -> str:
@@ -67,7 +65,7 @@ def app_regions(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load regions dimension to PostgreSQL for webapp.
     """
-    regions_path = PROCESSED_DIR / "dim_regions.parquet"
+    regions_path = MART_DIR / "dim_regions.parquet"
 
     if not regions_path.exists():
         context.log.warning(f"Regions file not found: {regions_path}")
@@ -114,7 +112,7 @@ def app_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load ZHVI fact table to PostgreSQL for webapp.
     """
-    values_path = PROCESSED_DIR / "fct_zhvi_values.parquet"
+    values_path = MART_DIR / "fct_zhvi_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Values file not found: {values_path}")
@@ -166,7 +164,7 @@ def app_zori_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load ZORI fact table to PostgreSQL for webapp.
     """
-    values_path = PROCESSED_DIR / "fct_zori_values.parquet"
+    values_path = MART_DIR / "fct_zori_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Values file not found: {values_path}")
@@ -216,7 +214,7 @@ def app_market_summary(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load market summary to PostgreSQL for webapp dashboard.
     """
-    summary_path = PROCESSED_DIR / "market_summary.parquet"
+    summary_path = MART_DIR / "market_summary.parquet"
 
     if not summary_path.exists():
         context.log.warning(f"Summary file not found: {summary_path}")
@@ -249,7 +247,7 @@ def app_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load inventory fact table to PostgreSQL for webapp.
     """
-    values_path = PROCESSED_DIR / "fct_inventory_values.parquet"
+    values_path = MART_DIR / "fct_inventory_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Inventory file not found: {values_path}")
@@ -301,7 +299,7 @@ def app_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load market heat index to PostgreSQL for webapp.
     """
-    values_path = PROCESSED_DIR / "fct_market_heat_index.parquet"
+    values_path = MART_DIR / "fct_market_heat_index.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Market heat index file not found: {values_path}")
@@ -351,7 +349,7 @@ def app_affordability_metrics(context: AssetExecutionContext) -> MaterializeResu
     """
     Load affordability metrics to PostgreSQL for webapp.
     """
-    values_path = PROCESSED_DIR / "fct_affordability_metrics.parquet"
+    values_path = MART_DIR / "fct_affordability_metrics.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Affordability metrics file not found: {values_path}")

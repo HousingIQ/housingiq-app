@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 from dagster import ConfigurableResource
 from pydantic import Field
 
+from .paths import RAW_DIR, STAGING_DIR, MART_DIR
+
 
 def parse_database_url(url: str) -> dict:
     """Parse DATABASE_URL into components."""
@@ -68,15 +70,20 @@ class DataDirectoryResource(ConfigurableResource):
 
     @property
     def raw_dir(self) -> Path:
-        return Path(self.base_dir)
+        return RAW_DIR
 
     @property
-    def processed_dir(self) -> Path:
-        return Path(self.base_dir) / "processed"
+    def staging_dir(self) -> Path:
+        return STAGING_DIR
+
+    @property
+    def mart_dir(self) -> Path:
+        return MART_DIR
 
     def ensure_dirs(self) -> None:
         self.raw_dir.mkdir(parents=True, exist_ok=True)
-        self.processed_dir.mkdir(parents=True, exist_ok=True)
+        self.staging_dir.mkdir(parents=True, exist_ok=True)
+        self.mart_dir.mkdir(parents=True, exist_ok=True)
 
 
 # Default resource configuration

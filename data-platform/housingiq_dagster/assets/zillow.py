@@ -4,8 +4,6 @@ Zillow Data Assets.
 Software-defined assets for Zillow data ingestion and transformation.
 """
 
-from pathlib import Path
-
 from dagster import (
     AssetExecutionContext,
     AssetKey,
@@ -21,9 +19,7 @@ from ingestion.sources.zillow import (
 )
 from ingestion.sources.zillow.config import DEFAULT_CATEGORIES
 
-# Configuration
-DATA_DIR = Path("data")
-PROCESSED_DIR = DATA_DIR / "processed"
+from ..paths import RAW_DIR, STAGING_DIR
 
 
 @asset(
@@ -38,7 +34,7 @@ def zillow_manifest(context: AssetExecutionContext) -> MaterializeResult:
     This asset scrapes the Zillow Research data catalog and generates
     a manifest file with all available download URLs.
     """
-    scraper = ZillowScraper(manifest_path=DATA_DIR / "manifest.json")
+    scraper = ZillowScraper(manifest_path=RAW_DIR / "manifest.json")
     links = scraper.generate_all_urls()
     manifest = scraper.save_manifest(links)
 
@@ -48,7 +44,7 @@ def zillow_manifest(context: AssetExecutionContext) -> MaterializeResult:
         metadata={
             "total_links": MetadataValue.int(manifest["total_links"]),
             "categories": MetadataValue.json(manifest["categories"]),
-            "manifest_path": MetadataValue.path(str(DATA_DIR / "manifest.json")),
+            "manifest_path": MetadataValue.path(str(RAW_DIR / "manifest.json")),
         }
     )
 
@@ -63,8 +59,9 @@ def zillow_raw_files(context: AssetExecutionContext) -> MaterializeResult:
     """
     Download raw Zillow CSV files.
 
-    Downloads CSV files for configured categories. Skips existing files
-    to enable incremental updates.
+    Downloads CSV files for configured categories. Files older than
+    max_age_days (default 30) are automatically re-downloaded to
+    pick up monthly Zillow updates.
     """
     # Generate URLs for default categories
     scraper = ZillowScraper()
@@ -72,19 +69,20 @@ def zillow_raw_files(context: AssetExecutionContext) -> MaterializeResult:
 
     context.log.info(f"Downloading {len(links)} files for categories: {DEFAULT_CATEGORIES}")
 
-    # Download files
+    # Download files - re-download if older than 30 days
     downloader = ZillowDownloader(
-        output_dir=DATA_DIR,
-        skip_existing=True,
+        output_dir=RAW_DIR,
+        skip_existing=False,
+        max_age_days=30,
     )
     stats = downloader.download_links(links)
 
     # Save download log
-    downloader.save_download_log(DATA_DIR / "download_log.json")
+    downloader.save_download_log(RAW_DIR / "download_log.json")
 
     context.log.info(
-        f"Download complete: {stats.success} success, "
-        f"{stats.skipped} skipped, {stats.failed} failed"
+        f"Download complete: {stats.success} new, {stats.updated} updated, "
+        f"{stats.skipped} fresh, {stats.failed} failed"
     )
 
     storage = downloader.get_storage_stats()
@@ -92,8 +90,9 @@ def zillow_raw_files(context: AssetExecutionContext) -> MaterializeResult:
     return MaterializeResult(
         metadata={
             "total_files": MetadataValue.int(stats.total),
-            "success": MetadataValue.int(stats.success),
-            "skipped": MetadataValue.int(stats.skipped),
+            "new_downloads": MetadataValue.int(stats.success),
+            "updated": MetadataValue.int(stats.updated),
+            "skipped_fresh": MetadataValue.int(stats.skipped),
             "failed": MetadataValue.int(stats.failed),
             "total_size_mb": MetadataValue.float(storage["total_size_mb"]),
             "categories": MetadataValue.json(DEFAULT_CATEGORIES),
@@ -114,11 +113,11 @@ def zillow_zhvi_transformed(context: AssetExecutionContext) -> MaterializeResult
     Reads raw CSV files, normalizes to long format, and outputs
     Parquet files for regions and values.
     """
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
     transformer = ZillowTransformer(
-        input_dir=DATA_DIR,
-        output_dir=PROCESSED_DIR,
+        input_dir=RAW_DIR,
+        output_dir=STAGING_DIR,
     )
 
     try:
@@ -170,11 +169,11 @@ def zillow_zori_transformed(context: AssetExecutionContext) -> MaterializeResult
     Reads raw CSV files, normalizes to long format, and outputs
     Parquet files for regions and values.
     """
-    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    STAGING_DIR.mkdir(parents=True, exist_ok=True)
 
     transformer = ZillowTransformer(
-        input_dir=DATA_DIR,
-        output_dir=PROCESSED_DIR,
+        input_dir=RAW_DIR,
+        output_dir=STAGING_DIR,
     )
 
     try:

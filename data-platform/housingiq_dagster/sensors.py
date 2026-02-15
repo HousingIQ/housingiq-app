@@ -4,8 +4,6 @@ Dagster Sensors.
 Event-driven triggers for automated pipeline execution.
 """
 
-from pathlib import Path
-
 from dagster import (
     AssetKey,
     RunRequest,
@@ -15,6 +13,8 @@ from dagster import (
     asset_sensor,
     sensor,
 )
+
+from .paths import RAW_DIR, MART_DIR
 
 # =============================================================================
 # File-based Sensors
@@ -32,7 +32,7 @@ def new_csv_sensor(context: SensorEvaluationContext) -> SensorResult:
     Monitors the data directory for new Zillow CSV downloads
     and triggers the transformation job.
     """
-    data_dir = Path("data")
+    data_dir = RAW_DIR
     if not data_dir.exists():
         return SensorResult(skip_reason=SkipReason("Data directory does not exist"))
 
@@ -124,12 +124,10 @@ def data_freshness_sensor(context: SensorEvaluationContext) -> SensorResult:
     Monitors the processed data directory and triggers a refresh
     if data is older than the configured threshold.
     """
-    processed_dir = Path("data/processed")
+    if not MART_DIR.exists():
+        return SensorResult(skip_reason=SkipReason("Mart directory does not exist"))
 
-    if not processed_dir.exists():
-        return SensorResult(skip_reason=SkipReason("Processed directory does not exist"))
-
-    parquet_files = list(processed_dir.glob("*.parquet"))
+    parquet_files = list(MART_DIR.glob("*.parquet"))
 
     if not parquet_files:
         # No data yet - trigger initial load
