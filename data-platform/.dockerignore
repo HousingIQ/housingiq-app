@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+.ruff_cache
+.mypy_cache
+.pytest_cache
+.dagster
+data/
+htmlcov/
+*.egg-info
+.git
+.gitignore
+# Keep README.md (required by pyproject.toml hatchling build)
+!README.md
+Dockerfile
+.dockerignore
+.DS_Store

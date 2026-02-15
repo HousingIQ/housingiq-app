@@ -1,0 +1,13 @@
+node_modules
+.next
+.env*
+!.env.example
+.git
+.gitignore
+*.md
+Dockerfile
+.dockerignore
+.vercel
+coverage
+.DS_Store
+# Note: .npmrc is intentionally NOT ignored (needed for legacy-peer-deps)

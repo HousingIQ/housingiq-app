@@ -2,3 +2,7 @@
 .env
 webapp-deploy-key
 webapp-deploy-key.pub
+
+# Data platform local data
+data-platform/data/
+data-platform/.dagster/

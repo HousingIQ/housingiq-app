@@ -15,13 +15,13 @@ from .database import (
     app_zori_values,
 )
 from .transforms import (
-    dim_regions,
-    fct_affordability_metrics,
-    fct_inventory_values,
-    fct_market_heat_index,
-    fct_zhvi_values,
-    fct_zori_values,
-    market_summary,
+    aggregate_market_summary,
+    dimension_regions,
+    fact_affordability_metrics,
+    fact_inventory_values,
+    fact_market_heat_index,
+    fact_zhvi_values,
+    fact_zori_values,
 )
 from .zillow import (
     zillow_manifest,
@@ -37,13 +37,13 @@ __all__ = [
     "zillow_zhvi_transformed",
     "zillow_zori_transformed",
     # Polars transformation assets
-    "fct_zhvi_values",
-    "fct_zori_values",
-    "fct_inventory_values",
-    "fct_market_heat_index",
-    "fct_affordability_metrics",
-    "dim_regions",
-    "market_summary",
+    "fact_zhvi_values",
+    "fact_zori_values",
+    "fact_inventory_values",
+    "fact_market_heat_index",
+    "fact_affordability_metrics",
+    "dimension_regions",
+    "aggregate_market_summary",
     # App database loading assets
     "app_regions",
     "app_zhvi_values",

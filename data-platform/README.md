@@ -37,10 +37,10 @@ The pipeline uses Polars for high-performance data transformations:
 zillow_manifest → zillow_raw_files → zillow_zhvi_transformed
                                   → zillow_zori_transformed
                                            ↓
-                           fct_zhvi_values (Polars)
-                           fct_zori_values (Polars)
-                           dim_regions (Polars)
-                           market_summary (Polars)
+                           fact_zhvi_values (Polars)
+                           fact_zori_values (Polars)
+                           dimension_regions (Polars)
+                           aggregate_market_summary (Polars)
                                            ↓
                            app.regions (PostgreSQL)
                            app.zhvi_values (PostgreSQL)

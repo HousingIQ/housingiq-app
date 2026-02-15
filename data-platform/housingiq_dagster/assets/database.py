@@ -58,14 +58,14 @@ def drop_and_create_table(table_name: str, df: pl.DataFrame) -> None:
 @asset(
     group_name="app_database",
     description="Load regions to app.regions table",
-    deps=["dim_regions"],
+    deps=["dimension_regions"],
     compute_kind="postgres",
 )
 def app_regions(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load regions dimension to PostgreSQL for webapp.
     """
-    regions_path = MART_DIR / "dim_regions.parquet"
+    regions_path = MART_DIR / "dimension_regions.parquet"
 
     if not regions_path.exists():
         context.log.warning(f"Regions file not found: {regions_path}")
@@ -105,14 +105,14 @@ def app_regions(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     group_name="app_database",
     description="Load ZHVI values to app.zhvi_values table",
-    deps=["fct_zhvi_values"],
+    deps=["fact_zhvi_values"],
     compute_kind="postgres",
 )
 def app_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load ZHVI fact table to PostgreSQL for webapp.
     """
-    values_path = MART_DIR / "fct_zhvi_values.parquet"
+    values_path = MART_DIR / "fact_zhvi_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Values file not found: {values_path}")
@@ -157,14 +157,14 @@ def app_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     group_name="app_database",
     description="Load ZORI values to app.zori_values table",
-    deps=["fct_zori_values"],
+    deps=["fact_zori_values"],
     compute_kind="postgres",
 )
 def app_zori_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load ZORI fact table to PostgreSQL for webapp.
     """
-    values_path = MART_DIR / "fct_zori_values.parquet"
+    values_path = MART_DIR / "fact_zori_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Values file not found: {values_path}")
@@ -207,7 +207,7 @@ def app_zori_values(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     group_name="app_database",
     description="Load market summary to app.market_summary table",
-    deps=["market_summary"],
+    deps=["aggregate_market_summary"],
     compute_kind="postgres",
 )
 def app_market_summary(context: AssetExecutionContext) -> MaterializeResult:
@@ -240,14 +240,14 @@ def app_market_summary(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     group_name="app_database",
     description="Load inventory values to app.inventory_values table",
-    deps=["fct_inventory_values"],
+    deps=["fact_inventory_values"],
     compute_kind="postgres",
 )
 def app_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load inventory fact table to PostgreSQL for webapp.
     """
-    values_path = MART_DIR / "fct_inventory_values.parquet"
+    values_path = MART_DIR / "fact_inventory_values.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Inventory file not found: {values_path}")
@@ -292,14 +292,14 @@ def app_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     group_name="app_database",
     description="Load market heat index to app.market_heat_index table",
-    deps=["fct_market_heat_index"],
+    deps=["fact_market_heat_index"],
     compute_kind="postgres",
 )
 def app_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load market heat index to PostgreSQL for webapp.
     """
-    values_path = MART_DIR / "fct_market_heat_index.parquet"
+    values_path = MART_DIR / "fact_market_heat_index.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Market heat index file not found: {values_path}")
@@ -342,14 +342,14 @@ def app_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
 @asset(
     group_name="app_database",
     description="Load affordability metrics to app.affordability_metrics table",
-    deps=["fct_affordability_metrics"],
+    deps=["fact_affordability_metrics"],
     compute_kind="postgres",
 )
 def app_affordability_metrics(context: AssetExecutionContext) -> MaterializeResult:
     """
     Load affordability metrics to PostgreSQL for webapp.
     """
-    values_path = MART_DIR / "fct_affordability_metrics.parquet"
+    values_path = MART_DIR / "fact_affordability_metrics.parquet"
 
     if not values_path.exists():
         context.log.warning(f"Affordability metrics file not found: {values_path}")

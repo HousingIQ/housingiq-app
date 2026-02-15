@@ -8,27 +8,50 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: up down logs psql clean help setup dev webapp dagster sync-to-neon sync-to-neon-dry
+.PHONY: up down logs psql clean help setup dev webapp dagster \
+        docker-build docker-up docker-down docker-logs docker-init docker-restart \
+        test-data test-data-integration test-data-all \
+        sync-to-neon sync-to-neon-dry
 
 # Default target
 help:
 	@echo "HousingIQ Development Commands"
 	@echo "=============================="
 	@echo ""
-	@echo "Quick Start:"
-	@echo "  make setup     - First-time setup (install all dependencies)"
-	@echo "  make dev       - Start all services for development"
+	@echo "Docker (Full Stack):"
+	@echo "  make docker-build   - Build all Docker images"
+	@echo "  make docker-up      - Start all services via Docker"
+	@echo "  make docker-init    - Initialize DB schema + seed test user"
+	@echo "  make docker-down    - Stop all Docker services"
+	@echo "  make docker-logs    - Follow logs from all services"
+	@echo "  make docker-restart - Rebuild and restart all services"
+	@echo "  make docker-clean   - Stop services and remove volumes"
 	@echo ""
-	@echo "Infrastructure:"
-	@echo "  make up        - Start PostgreSQL and pgweb"
-	@echo "  make down      - Stop all services"
-	@echo "  make logs      - View service logs"
-	@echo "  make psql      - Connect to PostgreSQL"
-	@echo "  make clean     - Remove volumes and data"
+	@echo "Quick Start (Docker):"
+	@echo "  make docker-build && make docker-up && make docker-init"
 	@echo ""
-	@echo "Individual Services:"
-	@echo "  make webapp    - Start webapp only (Next.js on port 3000)"
-	@echo "  make dagster   - Start Dagster only (on port 3001)"
+	@echo "Quick Start (Local Dev):"
+	@echo "  make setup          - First-time setup (install deps, push schema)"
+	@echo "  make dev            - Start all services for local development"
+	@echo ""
+	@echo "Local Infrastructure:"
+	@echo "  make up             - Start PostgreSQL and pgweb (Docker)"
+	@echo "  make down           - Stop PostgreSQL and pgweb"
+	@echo "  make logs           - View infrastructure logs"
+	@echo "  make psql           - Connect to PostgreSQL CLI"
+	@echo "  make clean          - Remove volumes and data"
+	@echo ""
+	@echo "Local Individual Services:"
+	@echo "  make webapp         - Start webapp only (Next.js on port 3000)"
+	@echo "  make dagster        - Start Dagster only (on port 3001)"
+	@echo ""
+	@echo "Data Pipeline:"
+	@echo "  make materialize    - Materialize all Dagster assets"
+	@echo ""
+	@echo "Testing (Docker):"
+	@echo "  make test-data              - Run data-platform unit tests in Docker"
+	@echo "  make test-data-integration  - Run data-platform DB integration tests"
+	@echo "  make test-data-all          - Run all data-platform tests"
 	@echo ""
 	@echo "Production Sync:"
 	@echo "  make sync-to-neon     - Sync app schema to Neon (requires NEON_DATABASE_URL)"
@@ -36,10 +59,57 @@ help:
 	@echo ""
 
 # ============================================================================
-# Quick Start
+# Docker - Full Stack
 # ============================================================================
 
-setup: up  ## First-time setup
+docker-build:  ## Build all Docker images
+	docker compose build
+
+docker-up:  ## Start all services via Docker Compose
+	docker compose up -d
+	@echo ""
+	@echo "=========================================="
+	@echo "HousingIQ is starting..."
+	@echo "=========================================="
+	@echo ""
+	@echo "Services:"
+	@echo "  PostgreSQL:  localhost:5432"
+	@echo "  pgweb:       http://localhost:8081"
+	@echo "  Webapp:      http://localhost:3000"
+	@echo "  Dagster UI:  http://localhost:3001"
+	@echo ""
+	@echo "If this is your first time, run:  make docker-init"
+	@echo ""
+
+docker-init:  ## Initialize DB schema + seed test user (run once after first docker-up)
+	docker compose --profile init run --rm webapp-init
+	@echo ""
+	@echo "=========================================="
+	@echo "Database initialized!"
+	@echo "=========================================="
+	@echo ""
+	@echo "Test user credentials:"
+	@echo "  Email:    test@housingiq.com"
+	@echo "  Password: TestPassword123!"
+	@echo ""
+
+docker-down:  ## Stop all Docker services
+	docker compose --profile init down
+
+docker-logs:  ## Follow logs from all Docker services
+	docker compose logs -f
+
+docker-restart: docker-down docker-build docker-up  ## Rebuild and restart all services
+
+docker-clean:  ## Stop services and remove all volumes (fresh start)
+	docker compose --profile init down -v
+	@echo "All volumes removed. Run 'make docker-build && make docker-up && make docker-init' for a fresh start."
+
+# ============================================================================
+# Local Quick Start
+# ============================================================================
+
+setup: up  ## First-time setup (local dev)
 	@echo "=========================================="
 	@echo "Setting up HousingIQ Development Environment"
 	@echo "=========================================="
@@ -75,7 +145,7 @@ setup: up  ## First-time setup
 	@echo "  make dagster  - Start Dagster (port 3001)"
 	@echo ""
 
-dev: up  ## Start all services for development
+dev: up  ## Start all services for local development
 	@echo "Starting HousingIQ development environment..."
 	@echo ""
 	@echo "Services:"
@@ -83,6 +153,11 @@ dev: up  ## Start all services for development
 	@echo "  pgweb:      http://localhost:8081"
 	@echo "  Webapp:     http://localhost:3000"
 	@echo "  Dagster:    http://localhost:3001"
+	@echo ""
+	@echo "Data directory: data-platform/data/"
+	@echo "  raw/      - Downloaded Zillow CSV files"
+	@echo "  staging/  - Normalized Parquet files"
+	@echo "  mart/     - Final transformed Parquet files"
 	@echo ""
 	@echo "Starting webapp and Dagster in parallel..."
 	@echo "(Press Ctrl+C to stop all services)"
@@ -93,32 +168,44 @@ dev: up  ## Start all services for development
 		wait
 
 # ============================================================================
-# Infrastructure
+# Local Infrastructure (DB only)
 # ============================================================================
 
-up:
-	docker compose up -d
+up:  ## Start PostgreSQL + pgweb containers only (for local dev)
+	@# Guard: fail if full-stack Docker is already running on ports 3000/3001
+	@if docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'housingiq-dagster-webserver'; then \
+		echo ""; \
+		echo "ERROR: Full-stack Docker is running (dagster-webserver container detected)."; \
+		echo "Run 'make docker-down' first, or use 'make docker-up' for full Docker mode."; \
+		echo ""; \
+		exit 1; \
+	fi
+	docker compose up -d postgres pgweb
 	@echo ""
 	@echo "Services running:"
 	@echo "  PostgreSQL: localhost:5432"
 	@echo "  pgweb:      http://localhost:8081"
 	@echo ""
 
-down:
-	docker compose down
+down:  ## Stop local infrastructure (PostgreSQL + pgweb only)
+	docker compose stop postgres pgweb
+	docker compose rm -f postgres pgweb
+	@echo "Local infrastructure stopped."
 
-logs:
-	docker compose logs -f
+logs:  ## View PostgreSQL + pgweb logs
+	docker compose logs -f postgres pgweb
 
-psql:
+psql:  ## Connect to PostgreSQL CLI
 	docker compose exec postgres psql -U housingiq -d housingiq
 
-clean:
-	docker compose down -v
-	@echo "Volumes removed"
+clean:  ## Remove PostgreSQL volume and data (fresh start)
+	docker compose stop postgres pgweb
+	docker compose rm -f postgres pgweb
+	docker volume rm -f housingiq-app_pgdata
+	@echo "PostgreSQL volume removed."
 
 # ============================================================================
-# Individual Services
+# Individual Services (local dev)
 # ============================================================================
 
 webapp: up  ## Start webapp (Next.js)
@@ -146,6 +233,18 @@ db-studio:  ## Open Drizzle Studio
 
 materialize:  ## Materialize all Dagster assets
 	cd data-platform && DAGSTER_HOME=$(PWD)/data-platform dagster asset materialize --select "*" -m housingiq_dagster.definitions
+
+# ============================================================================
+# Testing (Docker)
+# ============================================================================
+
+test-data:  ## Run data-platform unit + asset tests in Docker (no DB required)
+	docker compose --profile test run --rm data-platform-test
+
+test-data-integration:  ## Run data-platform integration tests (requires PostgreSQL)
+	docker compose --profile test run --rm data-platform-test-integration
+
+test-data-all: test-data test-data-integration  ## Run all data-platform tests
 
 # ============================================================================
 # Production Sync

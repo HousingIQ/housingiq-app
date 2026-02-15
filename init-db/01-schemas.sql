@@ -16,8 +16,13 @@ GRANT ALL ON SCHEMA app TO housingiq;
 -- Set default search path
 ALTER USER housingiq SET search_path TO public, raw, staging, analytics, app;
 
+-- Create a separate database for Dagster's internal storage (run history, event logs)
+-- This keeps Dagster's tables isolated from the application tables.
+CREATE DATABASE dagster OWNER housingiq;
+
 -- Log success
 DO $$
 BEGIN
     RAISE NOTICE 'HousingIQ schemas created successfully: raw, staging, analytics, app';
+    RAISE NOTICE 'Dagster internal database created: dagster';
 END $$;

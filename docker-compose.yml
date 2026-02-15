@@ -1,7 +1,27 @@
-# Shared infrastructure for HousingIQ
-# Used by both webapp and data-platform
+# ============================================================================
+# HousingIQ - Full Stack Docker Compose
+# ============================================================================
+# Usage:
+#   docker compose up -d              # Start all services
+#   docker compose logs -f webapp     # Follow webapp logs
+#   docker compose --profile init up  # Run DB init (first time only)
+#
+# Services:
+#   postgres          - PostgreSQL 16 database
+#   pgweb             - Database web UI (port 8081)
+#   webapp            - Next.js frontend (port 3000)
+#   dagster-webserver - Dagster UI (port 3001)
+#   dagster-daemon    - Dagster scheduler/sensor daemon
+#
+# Profiles:
+#   init              - One-shot DB schema push + test user seed
+#   test              - Data platform test runners
+# ============================================================================
 
 services:
+  # --------------------------------------------------------------------------
+  # PostgreSQL Database
+  # --------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: housingiq-db
@@ -20,6 +40,9 @@ services:
       timeout: 3s
       retries: 5
 
+  # --------------------------------------------------------------------------
+  # pgweb - Database Web UI
+  # --------------------------------------------------------------------------
   pgweb:
     image: sosedoff/pgweb
     container_name: housingiq-pgweb
@@ -31,5 +54,126 @@ services:
       postgres:
         condition: service_healthy
 
+  # --------------------------------------------------------------------------
+  # Webapp Init - Push DB schema + seed test user (run once)
+  # --------------------------------------------------------------------------
+  webapp-init:
+    build:
+      context: ./webapp
+      target: init
+    container_name: housingiq-webapp-init
+    environment:
+      DATABASE_URL: postgresql://housingiq:housingiq@postgres:5432/housingiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - init
+
+  # --------------------------------------------------------------------------
+  # Webapp - Next.js Frontend
+  # --------------------------------------------------------------------------
+  webapp:
+    build:
+      context: ./webapp
+      target: runner
+    container_name: housingiq-webapp
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://housingiq:housingiq@postgres:5432/housingiq
+      AUTH_SECRET: ${AUTH_SECRET:-super-secret-change-me-in-production}
+      AUTH_TRUST_HOST: "true"
+      AUTH_URL: http://localhost:3000
+      # Google OAuth (optional - set in .env if needed)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Dagster Webserver - Data Pipeline UI
+  # --------------------------------------------------------------------------
+  dagster-webserver:
+    build:
+      context: ./data-platform
+    container_name: housingiq-dagster-webserver
+    command: >
+      dagster-webserver
+        -h 0.0.0.0
+        -p 3001
+        -w /opt/dagster/dagster_home/workspace.yaml
+    ports:
+      - "3001:3001"
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      # Dagster internal storage uses a separate 'dagster' database
+      DAGSTER_PG_DB_CONN_STRING: postgresql://housingiq:housingiq@postgres:5432/dagster
+      # App data loaded by Dagster assets goes to the 'housingiq' database
+      DATABASE_URL: postgresql://housingiq:housingiq@postgres:5432/housingiq
+    working_dir: /opt/dagster/app
+    volumes:
+      - ./data-platform/data:/opt/dagster/app/data
+      - dagster-compute-logs:/opt/dagster/dagster_home/compute_logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Dagster Daemon - Schedules, Sensors, Run Queue
+  # --------------------------------------------------------------------------
+  dagster-daemon:
+    build:
+      context: ./data-platform
+    container_name: housingiq-dagster-daemon
+    command: dagster-daemon run -w /opt/dagster/dagster_home/workspace.yaml
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_DB_CONN_STRING: postgresql://housingiq:housingiq@postgres:5432/dagster
+      DATABASE_URL: postgresql://housingiq:housingiq@postgres:5432/housingiq
+    working_dir: /opt/dagster/app
+    volumes:
+      - ./data-platform/data:/opt/dagster/app/data
+      - dagster-compute-logs:/opt/dagster/dagster_home/compute_logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Data Platform Tests - Unit + Asset tests (no DB required)
+  # --------------------------------------------------------------------------
+  data-platform-test:
+    build:
+      context: ./data-platform
+      target: test
+    container_name: housingiq-data-platform-test
+    command: pytest -v -m "not integration" --tb=short
+    working_dir: /opt/dagster/app
+    profiles:
+      - test
+
+  # --------------------------------------------------------------------------
+  # Data Platform Tests - Integration tests (requires PostgreSQL)
+  # --------------------------------------------------------------------------
+  data-platform-test-integration:
+    build:
+      context: ./data-platform
+      target: test
+    container_name: housingiq-data-platform-test-integration
+    command: pytest -v -m integration --tb=short
+    working_dir: /opt/dagster/app
+    environment:
+      DATABASE_URL: postgresql://housingiq:housingiq@postgres:5432/housingiq
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - test
+
 volumes:
   pgdata:
+  dagster-compute-logs:
