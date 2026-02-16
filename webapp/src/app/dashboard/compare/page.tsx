@@ -48,8 +48,6 @@ interface TrendData {
 interface CompareData {
   regions: Record<string, RegionStats>;
   homeValueTrends: TrendData[];
-  rentTrends: TrendData[];
-  priceToRentTrends: TrendData[];
   filters: {
     homeType: string;
     tier: string;
@@ -174,7 +172,7 @@ export default function ComparePage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Compare Regions</h1>
         <p className="text-gray-500 mt-1">
-          Compare home values, rent prices, and P/R ratios across different regions
+          Compare home values across different regions
         </p>
       </div>
 
@@ -495,181 +493,6 @@ export default function ComparePage() {
             </Card>
           )}
 
-          {/* Rent Price Chart */}
-          {data.rentTrends.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Rent Price Comparison
-                </CardTitle>
-                <CardDescription>
-                  Zillow Observed Rent Index (ZORI) — Last {months >= 12 ? months / 12 : months} {months >= 12 ? (months / 12 === 1 ? 'year' : 'years') : 'months'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[300px] w-full">
-                  <LineChart
-                    data={data.rentTrends}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="formattedDate"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tickFormatter={(value, index) => {
-                        const interval = months <= 36 ? 6 : 12;
-                        if (index % interval === 0) return value;
-                        return '';
-                      }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tickFormatter={(value) => `$${value.toLocaleString()}`}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(label) => `${label}`}
-                          formatter={(value, name) => {
-                            const regionId = String(name);
-                            const config = chartConfig[regionId];
-                            return (
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="text-muted-foreground">
-                                  {config?.label || regionId}
-                                </span>
-                                <span className="font-mono font-medium">
-                                  {formatCurrency(Number(value))}/mo
-                                </span>
-                              </div>
-                            );
-                          }}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    {selectedRegions.map((region) => (
-                      <Line
-                        key={region.regionId}
-                        dataKey={region.regionId}
-                        type="monotone"
-                        stroke={region.color}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ))}
-                  </LineChart>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Price-to-Rent Ratio Chart */}
-          {data.priceToRentTrends.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Price-to-Rent Ratio Comparison
-                </CardTitle>
-                <CardDescription>
-                  Home Value ÷ (Annual Rent) — Lower values favor buying, higher favor renting
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ChartContainer config={chartConfig} className="h-[300px] w-full">
-                  <LineChart
-                    data={data.priceToRentTrends}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis
-                      dataKey="formattedDate"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tickFormatter={(value, index) => {
-                        const interval = months <= 36 ? 6 : 12;
-                        if (index % interval === 0) return value;
-                        return '';
-                      }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      tickFormatter={(value) => `${value}x`}
-                      domain={['auto', 'auto']}
-                    />
-                    <ChartTooltip
-                      content={
-                        <ChartTooltipContent
-                          labelFormatter={(label) => `${label}`}
-                          formatter={(value, name) => {
-                            const regionId = String(name);
-                            const config = chartConfig[regionId];
-                            const numValue = Number(value);
-                            const interpretation = numValue < 15 
-                              ? 'Buy-favorable' 
-                              : numValue > 20 
-                                ? 'Rent-favorable' 
-                                : 'Neutral';
-                            return (
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="text-muted-foreground">
-                                  {config?.label || regionId}
-                                </span>
-                                <span className="font-mono font-medium">
-                                  {numValue.toFixed(1)}x
-                                  <span className="ml-1 text-xs text-muted-foreground">
-                                    ({interpretation})
-                                  </span>
-                                </span>
-                              </div>
-                            );
-                          }}
-                        />
-                      }
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    {selectedRegions.map((region) => (
-                      <Line
-                        key={region.regionId}
-                        dataKey={region.regionId}
-                        type="monotone"
-                        stroke={region.color}
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 4, strokeWidth: 0 }}
-                      />
-                    ))}
-                  </LineChart>
-                </ChartContainer>
-
-                {/* P/R Ratio Legend */}
-                <div className="mt-4 flex items-center justify-center gap-6 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-green-500" />
-                    <span>&lt;15x: Buy favorable</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                    <span>15-20x: Neutral</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-red-500" />
-                    <span>&gt;20x: Rent favorable</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 
@@ -682,7 +505,7 @@ export default function ComparePage() {
               No regions selected
             </p>
             <p className="text-gray-400 mt-1">
-              Add regions above to compare home values, rents, and price-to-rent ratios
+              Add regions above to compare home values and market data
             </p>
           </CardContent>
         </Card>

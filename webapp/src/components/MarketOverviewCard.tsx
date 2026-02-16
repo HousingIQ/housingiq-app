@@ -156,35 +156,40 @@ export function MarketOverviewCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className={cn(
+          'grid grid-cols-1 gap-4',
+          data.currentRentValue != null ? 'md:grid-cols-3' : 'md:grid-cols-1'
+        )}>
           <MetricCard
             label="Median Home Price"
             value={data.currentHomeValue ? formatCurrency(data.currentHomeValue) : null}
             change={data.homeValueYoyPct}
             icon={Home}
           />
-          <MetricCard
-            label="Median Rent"
-            value={data.currentRentValue ? formatCurrency(data.currentRentValue) : null}
-            change={data.rentYoyPct}
-            icon={DollarSign}
-            suffix="/mo"
-          />
-          <div className="rounded-lg border bg-card p-4 text-card-foreground">
-            <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
-              <TrendingUp className="h-4 w-4" />
-              Price-to-Rent Ratio
-            </div>
-            <div className="text-2xl font-bold">
-              {data.priceToRentRatio?.toFixed(1) || 'N/A'}
-              <span className="text-base font-normal text-muted-foreground">x</span>
-            </div>
-            {data.priceToRentRatio && (
+          {data.currentRentValue != null && (
+            <MetricCard
+              label="Median Rent"
+              value={formatCurrency(data.currentRentValue)}
+              change={data.rentYoyPct}
+              icon={DollarSign}
+              suffix="/mo"
+            />
+          )}
+          {data.currentRentValue != null && data.priceToRentRatio != null && (
+            <div className="rounded-lg border bg-card p-4 text-card-foreground">
+              <div className="mb-1 flex items-center gap-2 text-sm text-muted-foreground">
+                <TrendingUp className="h-4 w-4" />
+                Price-to-Rent Ratio
+              </div>
+              <div className="text-2xl font-bold">
+                {data.priceToRentRatio.toFixed(1)}
+                <span className="text-base font-normal text-muted-foreground">x</span>
+              </div>
               <div className="mt-1 text-sm text-muted-foreground">
                 {getPriceToRentLabel(data.priceToRentRatio)}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

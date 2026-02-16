@@ -237,12 +237,12 @@ def classify_market_temperature(col_name: str = "heat_index") -> pl.Expr:
 def build_region_display_name(df: pl.DataFrame) -> pl.DataFrame:
     """Add a ``display_name`` column based on geography level.
 
-    Mapping:
+    Mapping (with null-safe fallbacks to region_name):
         National -> "United States"
-        State    -> state_name
+        State    -> state_name (fallback: region_name)
         Metro    -> region_name + " Metro Area"
-        County   -> county_name + ", " + state_code
-        City     -> city + ", " + state_code
+        County   -> county_name + ", " + state_code (fallback: region_name)
+        City     -> city + ", " + state_code (fallback: region_name)
         Other    -> region_name
 
     Args:
@@ -256,13 +256,31 @@ def build_region_display_name(df: pl.DataFrame) -> pl.DataFrame:
         pl.when(pl.col("geography_level") == "National")
         .then(pl.lit("United States"))
         .when(pl.col("geography_level") == "State")
-        .then(pl.col("state_name"))
+        .then(
+            pl.when(pl.col("state_name").is_not_null())
+            .then(pl.col("state_name"))
+            .otherwise(pl.col("region_name"))
+        )
         .when(pl.col("geography_level") == "Metro")
         .then(pl.col("region_name") + pl.lit(" Metro Area"))
         .when(pl.col("geography_level") == "County")
-        .then(pl.col("county_name") + pl.lit(", ") + pl.col("state_code"))
+        .then(
+            pl.when(
+                pl.col("county_name").is_not_null()
+                & pl.col("state_code").is_not_null()
+            )
+            .then(pl.col("county_name") + pl.lit(", ") + pl.col("state_code"))
+            .otherwise(pl.col("region_name"))
+        )
         .when(pl.col("geography_level") == "City")
-        .then(pl.col("city") + pl.lit(", ") + pl.col("state_code"))
+        .then(
+            pl.when(
+                pl.col("city").is_not_null()
+                & pl.col("state_code").is_not_null()
+            )
+            .then(pl.col("city") + pl.lit(", ") + pl.col("state_code"))
+            .otherwise(pl.col("region_name"))
+        )
         .otherwise(pl.col("region_name"))
         .alias("display_name")
     ])

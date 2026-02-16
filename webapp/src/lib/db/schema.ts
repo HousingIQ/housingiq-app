@@ -57,20 +57,6 @@ export const zhviValues = appSchema.table('zhvi_values', {
   yoyChangePct: real('yoy_change_pct'),
 });
 
-// ZORI Values fact table (rent values over time) - loaded by data platform
-export const zoriValues = appSchema.table('zori_values', {
-  regionId: varchar('region_id', { length: 100 }),
-  date: date('date'),
-  value: real('value'),
-  geographyLevel: varchar('geography_level', { length: 50 }),
-  homeType: varchar('home_type', { length: 50 }),
-  smoothed: boolean('smoothed'),
-  seasonallyAdjusted: boolean('seasonally_adjusted'),
-  frequency: varchar('frequency', { length: 20 }),
-  momChangePct: real('mom_change_pct'),
-  yoyChangePct: real('yoy_change_pct'),
-});
-
 // Market Summary table (pre-computed aggregates for dashboard) - loaded by data platform
 export const marketSummary = appSchema.table('market_summary', {
   regionId: varchar('region_id', { length: 100 }).primaryKey(),
@@ -94,82 +80,26 @@ export const marketSummary = appSchema.table('market_summary', {
   marketClassification: varchar('market_classification', { length: 20 }),
 });
 
-// Inventory Values fact table (for-sale inventory over time) - loaded by data platform
-export const inventoryValues = appSchema.table('inventory_values', {
-  regionId: varchar('region_id', { length: 100 }),
+// FHFA House Price Index table (long-term appreciation data) - loaded by data platform
+export const fhfaHpi = appSchema.table('fhfa_hpi', {
+  level: varchar('level', { length: 50 }),
+  placeName: varchar('place_name', { length: 255 }),
+  placeId: varchar('place_id', { length: 50 }),
   date: date('date'),
-  inventoryCount: integer('inventory_count'),
-  geographyLevel: varchar('geography_level', { length: 50 }),
-  homeType: varchar('home_type', { length: 50 }),
-  smoothed: boolean('smoothed'),
+  indexNsa: real('index_nsa'),
+  indexSa: real('index_sa'),
+  hpiType: varchar('hpi_type', { length: 50 }),
   frequency: varchar('frequency', { length: 20 }),
-  momChangePct: real('mom_change_pct'),
-  yoyChangePct: real('yoy_change_pct'),
-});
-
-// Market Heat Index table (market temperature over time) - loaded by data platform
-export const marketHeatIndex = appSchema.table('market_heat_index', {
-  regionId: varchar('region_id', { length: 100 }),
-  date: date('date'),
-  heatIndex: real('heat_index'),
-  geographyLevel: varchar('geography_level', { length: 50 }),
-  momChange: real('mom_change'),
-  yoyChange: real('yoy_change'),
-  marketTemperature: varchar('market_temperature', { length: 20 }),
-});
-
-// Affordability Metrics table (mortgage payments, income needed) - loaded by data platform
-export const affordabilityMetrics = appSchema.table('affordability_metrics', {
-  regionId: varchar('region_id', { length: 100 }),
-  date: date('date'),
-  value: real('value'),
-  geographyLevel: varchar('geography_level', { length: 50 }),
-  metricType: varchar('metric_type', { length: 50 }),
-  downPaymentPct: real('down_payment_pct'),
-  momChangePct: real('mom_change_pct'),
-  yoyChangePct: real('yoy_change_pct'),
 });
 
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   zhviValues: many(zhviValues),
-  zoriValues: many(zoriValues),
 }));
 
 export const zhviValuesRelations = relations(zhviValues, ({ one }) => ({
   region: one(regions, {
     fields: [zhviValues.regionId],
-    references: [regions.regionId],
-  }),
-}));
-
-export const zoriValuesRelations = relations(zoriValues, ({ one }) => ({
-  region: one(regions, {
-    fields: [zoriValues.regionId],
-    references: [regions.regionId],
-  }),
-}));
-
-// Inventory relations
-export const inventoryValuesRelations = relations(inventoryValues, ({ one }) => ({
-  region: one(regions, {
-    fields: [inventoryValues.regionId],
-    references: [regions.regionId],
-  }),
-}));
-
-// Market heat index relations
-export const marketHeatIndexRelations = relations(marketHeatIndex, ({ one }) => ({
-  region: one(regions, {
-    fields: [marketHeatIndex.regionId],
-    references: [regions.regionId],
-  }),
-}));
-
-// Affordability metrics relations
-export const affordabilityMetricsRelations = relations(affordabilityMetrics, ({ one }) => ({
-  region: one(regions, {
-    fields: [affordabilityMetrics.regionId],
     references: [regions.regionId],
   }),
 }));
@@ -181,11 +111,6 @@ export type Region = typeof regions.$inferSelect;
 export type NewRegion = typeof regions.$inferInsert;
 export type ZhviValue = typeof zhviValues.$inferSelect;
 export type NewZhviValue = typeof zhviValues.$inferInsert;
-export type ZoriValue = typeof zoriValues.$inferSelect;
-export type NewZoriValue = typeof zoriValues.$inferInsert;
 export type MarketSummary = typeof marketSummary.$inferSelect;
-export type InventoryValue = typeof inventoryValues.$inferSelect;
-export type NewInventoryValue = typeof inventoryValues.$inferInsert;
-export type MarketHeatIndexValue = typeof marketHeatIndex.$inferSelect;
-export type AffordabilityMetric = typeof affordabilityMetrics.$inferSelect;
+export type FhfaHpi = typeof fhfaHpi.$inferSelect;
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, regions, zhviValues, zoriValues, marketSummary } from '@/lib/db';
+import { db, regions, zhviValues, marketSummary } from '@/lib/db';
 import { and, inArray, isNull, gte, eq } from 'drizzle-orm';
 
 // Color palette for comparison lines
@@ -162,26 +162,6 @@ export async function GET(request: NextRequest) {
       )
       .orderBy(zhviValues.date);
 
-    // Fetch rent values (ZORI) for all selected regions
-    // Note: ZORI doesn't have tier, and typically only has "All Homes"
-    const rentValueResults = await db
-      .select({
-        regionId: zoriValues.regionId,
-        date: zoriValues.date,
-        value: zoriValues.value,
-      })
-      .from(zoriValues)
-      .where(
-        and(
-          inArray(zoriValues.regionId, regionIds),
-          eq(zoriValues.homeType, 'All Homes'),
-          eq(zoriValues.smoothed, true),
-          eq(zoriValues.seasonallyAdjusted, true),
-          gte(zoriValues.date, dateString)
-        )
-      )
-      .orderBy(zoriValues.date);
-
     // Group home values by date
     const homeValuesByDate = new Map<string, Record<string, number>>();
     for (const row of homeValueResults) {
@@ -192,23 +172,6 @@ export async function GET(request: NextRequest) {
       }
       homeValuesByDate.get(dateKey)![row.regionId] = row.value;
     }
-
-    // Group rent values by date
-    const rentValuesByDate = new Map<string, Record<string, number>>();
-    for (const row of rentValueResults) {
-      if (!row.date || !row.value || !row.regionId) continue;
-      const dateKey = row.date;
-      if (!rentValuesByDate.has(dateKey)) {
-        rentValuesByDate.set(dateKey, {});
-      }
-      rentValuesByDate.get(dateKey)![row.regionId] = row.value;
-    }
-
-    // Get all unique dates
-    const allDates = new Set([
-      ...homeValuesByDate.keys(),
-      ...rentValuesByDate.keys(),
-    ]);
 
     // Convert to array format for charts
     const formatDate = (date: string) => {
@@ -226,48 +189,10 @@ export async function GET(request: NextRequest) {
         ...values,
       }));
 
-    // Rent value trends
-    const rentTrends = Array.from(rentValuesByDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, values]) => ({
-        date,
-        formattedDate: formatDate(date),
-        ...values,
-      }));
-
-    // Calculate P/R Ratio trends (home value / (rent * 12))
-    const priceToRentTrends = Array.from(allDates)
-      .sort()
-      .map((date) => {
-        const homeValues = homeValuesByDate.get(date) || {};
-        const rentValues = rentValuesByDate.get(date) || {};
-        
-        const ratios: Record<string, number> = {};
-        for (const regionId of regionIds) {
-          const homeValue = homeValues[regionId];
-          const rentValue = rentValues[regionId];
-          if (homeValue && rentValue && rentValue > 0) {
-            ratios[regionId] = Math.round((homeValue / (rentValue * 12)) * 10) / 10;
-          }
-        }
-        
-        // Only include dates where at least one region has data
-        if (Object.keys(ratios).length === 0) return null;
-        
-        return {
-          date,
-          formattedDate: formatDate(date),
-          ...ratios,
-        };
-      })
-      .filter(Boolean);
-
     return NextResponse.json({
       data: {
         regions: regionStats,
         homeValueTrends,
-        rentTrends,
-        priceToRentTrends,
         filters: {
           homeType: validHomeType,
           tier: validTier,

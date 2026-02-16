@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, marketSummary } from '@/lib/db';
-import { eq, desc, asc } from 'drizzle-orm';
+import { eq, desc, asc, isNotNull, and } from 'drizzle-orm';
 
 // Map of valid sort columns to their Drizzle column references
 const SORT_COLUMNS = {
@@ -46,6 +46,16 @@ export async function GET(request: NextRequest) {
     const sortColumn = SORT_COLUMNS[sortBy as keyof typeof SORT_COLUMNS];
     const orderFn = order === 'asc' ? asc : desc;
 
+    // Columns that require non-null rent data
+    const RENT_COLUMNS = ['rentYoyPct', 'grossRentYieldPct', 'priceToRentRatio', 'currentRentValue'];
+    const requiresRentData = RENT_COLUMNS.includes(sortBy);
+
+    // Build where conditions
+    const conditions = [eq(marketSummary.geographyLevel, geographyLevel)];
+    if (requiresRentData) {
+      conditions.push(isNotNull(marketSummary.currentRentValue));
+    }
+
     const results = await db
       .select({
         regionId: marketSummary.regionId,
@@ -64,7 +74,7 @@ export async function GET(request: NextRequest) {
         marketClassification: marketSummary.marketClassification,
       })
       .from(marketSummary)
-      .where(eq(marketSummary.geographyLevel, geographyLevel))
+      .where(and(...conditions))
       .orderBy(orderFn(sortColumn))
       .limit(limit);
 

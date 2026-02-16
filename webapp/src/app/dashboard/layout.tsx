@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { auth, signOut } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map, Package } from 'lucide-react';
+import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map } from 'lucide-react';
 
 export default async function DashboardLayout({
   children,
@@ -60,24 +60,6 @@ export default async function DashboardLayout({
               </li>
               <li>
                 <Link
-                  href="/dashboard/market-pulse"
-                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <TrendingUp className="h-5 w-5 text-orange-500" />
-                  Market Pulse
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/dashboard/affordability"
-                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <Calculator className="h-5 w-5 text-green-500" />
-                  Affordability
-                </Link>
-              </li>
-              <li>
-                <Link
                   href="/dashboard/calculator"
                   className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
                 >
@@ -92,15 +74,6 @@ export default async function DashboardLayout({
                 >
                   <Map className="h-5 w-5" />
                   Map
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/dashboard/inventory"
-                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <Package className="h-5 w-5" />
-                  Inventory
                 </Link>
               </li>
             </ul>

@@ -6,13 +6,14 @@ All transformations are done with Polars for high performance.
 """
 
 from .database import (
-    app_affordability_metrics,
-    app_inventory_values,
-    app_market_heat_index,
     app_market_summary,
     app_regions,
     app_zhvi_values,
-    app_zori_values,
+)
+from .fhfa import (
+    app_fhfa_hpi,
+    fhfa_hpi_transformed,
+    fhfa_raw_file,
 )
 from .transforms import (
     aggregate_market_summary,
@@ -36,6 +37,9 @@ __all__ = [
     "zillow_raw_files",
     "zillow_zhvi_transformed",
     "zillow_zori_transformed",
+    # FHFA ingestion assets
+    "fhfa_raw_file",
+    "fhfa_hpi_transformed",
     # Polars transformation assets
     "fact_zhvi_values",
     "fact_zori_values",
@@ -47,9 +51,6 @@ __all__ = [
     # App database loading assets
     "app_regions",
     "app_zhvi_values",
-    "app_zori_values",
-    "app_inventory_values",
-    "app_market_heat_index",
-    "app_affordability_metrics",
     "app_market_summary",
+    "app_fhfa_hpi",
 ]

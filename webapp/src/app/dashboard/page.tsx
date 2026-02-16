@@ -32,9 +32,7 @@ interface MarketData {
 interface TrendData {
   date: string;
   homeValue: number | null;
-  rentValue: number | null;
   momChangePct: number | null;
-  priceToRentRatio: number | null;
 }
 
 // Filter options
