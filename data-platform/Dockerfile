@@ -5,7 +5,7 @@
 # The command is specified in docker-compose.yml per service.
 # ============================================================================
 
-FROM python:3.11-slim
+FROM python:3.11-slim AS runtime
 
 # Install system dependencies required by psycopg2, polars, pyarrow
 RUN apt-get update && apt-get install -y --no-install-recommends \
