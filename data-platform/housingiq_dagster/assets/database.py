@@ -15,6 +15,7 @@ from dagster import (
     asset,
 )
 
+from ..metadata import build_column_lineage, polars_metadata
 from ..paths import MART_DIR
 
 
@@ -93,12 +94,27 @@ def app_regions(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Loaded {len(df_app):,} regions to app.regions")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_app)),
-            "geography_levels": MetadataValue.json(
-                df_app["geography_level"].unique().to_list()
-            ),
-        }
+        metadata=polars_metadata(
+            df_app,
+            include_date_range=False,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_app["geography_level"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("dimension_regions", "region_id")],
+                    "region_name": [("dimension_regions", "region_name")],
+                    "display_name": [("dimension_regions", "display_name")],
+                    "geography_level": [("dimension_regions", "geography_level")],
+                    "state": [("dimension_regions", "state_code")],
+                    "state_name": [("dimension_regions", "state_name")],
+                    "city": [("dimension_regions", "city")],
+                    "county": [("dimension_regions", "county_name")],
+                    "metro": [("dimension_regions", "metro")],
+                    "size_rank": [("dimension_regions", "size_rank")],
+                }),
+            },
+        )
     )
 
 
@@ -145,12 +161,15 @@ def app_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Loaded {len(df_app):,} values to app.zhvi_values")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_app)),
-            "date_range": MetadataValue.text(
-                f"{df_app['date'].min()} to {df_app['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_app,
+            extra={
+                "dagster/column_lineage": build_column_lineage({
+                    col: [("fact_zhvi_values", col)]
+                    for col in df_app.columns
+                }),
+            },
+        )
     )
 
 
@@ -195,12 +214,15 @@ def app_zori_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Loaded {len(df_app):,} values to app.zori_values")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_app)),
-            "date_range": MetadataValue.text(
-                f"{df_app['date'].min()} to {df_app['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_app,
+            extra={
+                "dagster/column_lineage": build_column_lineage({
+                    col: [("fact_zori_values", col)]
+                    for col in df_app.columns
+                }),
+            },
+        )
     )
 
 
@@ -228,12 +250,19 @@ def app_market_summary(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Loaded {len(df):,} market summaries to app.market_summary")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df)),
-            "market_classifications": MetadataValue.json(
-                df["market_classification"].value_counts().to_dicts()
-            ),
-        }
+        metadata=polars_metadata(
+            df,
+            include_date_range=False,
+            extra={
+                "market_classifications": MetadataValue.json(
+                    df["market_classification"].value_counts().to_dicts()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    col: [("aggregate_market_summary", col)]
+                    for col in df.columns
+                }),
+            },
+        )
     )
 
 
@@ -277,15 +306,18 @@ def app_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Loaded {len(df_app):,} values to app.inventory_values")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_app)),
-            "geography_levels": MetadataValue.json(
-                df_app["geography_level"].unique().to_list()
-            ),
-            "date_range": MetadataValue.text(
-                f"{df_app['date'].min()} to {df_app['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_app,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_app["geography_level"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    col: [("fact_inventory_values", col)]
+                    for col in df_app.columns
+                }),
+            },
+        )
     )
 
 
@@ -327,15 +359,18 @@ def app_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Loaded {len(df_app):,} values to app.market_heat_index")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_app)),
-            "geography_levels": MetadataValue.json(
-                df_app["geography_level"].unique().to_list()
-            ),
-            "date_range": MetadataValue.text(
-                f"{df_app['date'].min()} to {df_app['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_app,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_app["geography_level"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    col: [("fact_market_heat_index", col)]
+                    for col in df_app.columns
+                }),
+            },
+        )
     )
 
 
@@ -378,17 +413,20 @@ def app_affordability_metrics(context: AssetExecutionContext) -> MaterializeResu
     context.log.info(f"Loaded {len(df_app):,} values to app.affordability_metrics")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_app)),
-            "geography_levels": MetadataValue.json(
-                df_app["geography_level"].unique().to_list()
-            ),
-            "metric_types": MetadataValue.json(
-                df_app["metric_type"].unique().to_list()
-            ),
-            "date_range": MetadataValue.text(
-                f"{df_app['date'].min()} to {df_app['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_app,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_app["geography_level"].unique().to_list()
+                ),
+                "metric_types": MetadataValue.json(
+                    df_app["metric_type"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    col: [("fact_affordability_metrics", col)]
+                    for col in df_app.columns
+                }),
+            },
+        )
     )
 

@@ -11,6 +11,7 @@ wrappers that handle file I/O and Dagster context.
 import polars as pl
 from dagster import AssetExecutionContext, MaterializeResult, MetadataValue, asset
 
+from ..metadata import build_column_lineage, polars_metadata
 from ..paths import MART_DIR, RAW_DIR, STAGING_DIR
 from ..transforms_logic import (
     INCLUDED_GEOGRAPHY_LEVELS,
@@ -68,13 +69,27 @@ def fact_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_transformed)),
-            "columns": MetadataValue.json(df_transformed.columns),
-            "date_range": MetadataValue.text(
-                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_transformed,
+            extra={
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("zillow_zhvi_transformed", "region_id")],
+                    "date": [("zillow_zhvi_transformed", "date")],
+                    "value": [("zillow_zhvi_transformed", "value")],
+                    "geography_level": [("zillow_zhvi_transformed", "geography_level")],
+                    "home_type": [("zillow_zhvi_transformed", "home_type")],
+                    "tier": [("zillow_zhvi_transformed", "tier")],
+                    "bedrooms": [("zillow_zhvi_transformed", "bedrooms")],
+                    "smoothed": [("zillow_zhvi_transformed", "smoothed")],
+                    "seasonally_adjusted": [("zillow_zhvi_transformed", "seasonally_adjusted")],
+                    "frequency": [("zillow_zhvi_transformed", "frequency")],
+                    "mom_change_pct": [("zillow_zhvi_transformed", "value")],
+                    "yoy_change_pct": [("zillow_zhvi_transformed", "value")],
+                    "mom_change_usd": [("zillow_zhvi_transformed", "value")],
+                    "yoy_change_usd": [("zillow_zhvi_transformed", "value")],
+                }),
+            },
+        )
     )
 
 
@@ -113,13 +128,25 @@ def fact_zori_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_transformed)),
-            "columns": MetadataValue.json(df_transformed.columns),
-            "date_range": MetadataValue.text(
-                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_transformed,
+            extra={
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("zillow_zori_transformed", "region_id")],
+                    "date": [("zillow_zori_transformed", "date")],
+                    "value": [("zillow_zori_transformed", "value")],
+                    "geography_level": [("zillow_zori_transformed", "geography_level")],
+                    "home_type": [("zillow_zori_transformed", "home_type")],
+                    "smoothed": [("zillow_zori_transformed", "smoothed")],
+                    "seasonally_adjusted": [("zillow_zori_transformed", "seasonally_adjusted")],
+                    "frequency": [("zillow_zori_transformed", "frequency")],
+                    "mom_change_pct": [("zillow_zori_transformed", "value")],
+                    "yoy_change_pct": [("zillow_zori_transformed", "value")],
+                    "mom_change_usd": [("zillow_zori_transformed", "value")],
+                    "yoy_change_usd": [("zillow_zori_transformed", "value")],
+                }),
+            },
+        )
     )
 
 
@@ -156,12 +183,34 @@ def dimension_regions(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Saved {len(df_transformed):,} regions to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_transformed)),
-            "geography_levels": MetadataValue.json(
-                df_transformed["geography_level"].unique().to_list()
-            ),
-        }
+        metadata=polars_metadata(
+            df_transformed,
+            include_date_range=False,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_transformed["geography_level"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("zillow_zhvi_transformed", "region_id")],
+                    "region_name": [("zillow_zhvi_transformed", "region_name")],
+                    "geography_level": [("zillow_zhvi_transformed", "geography_level")],
+                    "state_code": [("zillow_zhvi_transformed", "state_code")],
+                    "state_name": [("zillow_zhvi_transformed", "state_name")],
+                    "city": [("zillow_zhvi_transformed", "city")],
+                    "county_name": [("zillow_zhvi_transformed", "county_name")],
+                    "metro": [("zillow_zhvi_transformed", "metro")],
+                    "size_rank": [("zillow_zhvi_transformed", "size_rank")],
+                    "display_name": [
+                        ("zillow_zhvi_transformed", "geography_level"),
+                        ("zillow_zhvi_transformed", "region_name"),
+                        ("zillow_zhvi_transformed", "state_name"),
+                        ("zillow_zhvi_transformed", "state_code"),
+                        ("zillow_zhvi_transformed", "county_name"),
+                        ("zillow_zhvi_transformed", "city"),
+                    ],
+                }),
+            },
+        )
     )
 
 
@@ -205,15 +254,45 @@ def aggregate_market_summary(context: AssetExecutionContext) -> MaterializeResul
     context.log.info(f"Saved {len(summary):,} market summaries to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(summary)),
-            "geography_levels": MetadataValue.json(
-                summary["geography_level"].unique().to_list()
-            ),
-            "market_classifications": MetadataValue.json(
-                summary["market_classification"].value_counts().to_dicts()
-            ),
-        }
+        metadata=polars_metadata(
+            summary,
+            include_date_range=False,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    summary["geography_level"].unique().to_list()
+                ),
+                "market_classifications": MetadataValue.json(
+                    summary["market_classification"].value_counts().to_dicts()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("dimension_regions", "region_id")],
+                    "region_name": [("dimension_regions", "region_name")],
+                    "display_name": [("dimension_regions", "display_name")],
+                    "geography_level": [("dimension_regions", "geography_level")],
+                    "state_code": [("dimension_regions", "state_code")],
+                    "state_name": [("dimension_regions", "state_name")],
+                    "metro": [("dimension_regions", "metro")],
+                    "size_rank": [("dimension_regions", "size_rank")],
+                    "current_home_value": [("fact_zhvi_values", "value")],
+                    "home_value_yoy_pct": [("fact_zhvi_values", "yoy_change_pct")],
+                    "home_value_mom_pct": [("fact_zhvi_values", "mom_change_pct")],
+                    "home_value_date": [("fact_zhvi_values", "date")],
+                    "current_rent_value": [("fact_zori_values", "value")],
+                    "rent_yoy_pct": [("fact_zori_values", "yoy_change_pct")],
+                    "rent_mom_pct": [("fact_zori_values", "mom_change_pct")],
+                    "rent_value_date": [("fact_zori_values", "date")],
+                    "price_to_rent_ratio": [
+                        ("fact_zhvi_values", "value"),
+                        ("fact_zori_values", "value"),
+                    ],
+                    "gross_rent_yield_pct": [
+                        ("fact_zori_values", "value"),
+                        ("fact_zhvi_values", "value"),
+                    ],
+                    "market_classification": [("fact_zhvi_values", "yoy_change_pct")],
+                }),
+            },
+        )
     )
 
 
@@ -280,16 +359,25 @@ def fact_inventory_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_transformed)),
-            "columns": MetadataValue.json(df_transformed.columns),
-            "geography_levels": MetadataValue.json(
-                df_transformed["geography_level"].unique().to_list()
-            ),
-            "date_range": MetadataValue.text(
-                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_transformed,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_transformed["geography_level"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("zillow_raw_files", "RegionID")],
+                    "date": [("zillow_raw_files", "date")],
+                    "inventory_count": [("zillow_raw_files", "inventory_count")],
+                    "geography_level": [("zillow_raw_files", "RegionType")],
+                    "home_type": [("zillow_raw_files", "home_type")],
+                    "smoothed": [("zillow_raw_files", "smoothed")],
+                    "frequency": [("zillow_raw_files", "frequency")],
+                    "mom_change_pct": [("zillow_raw_files", "inventory_count")],
+                    "yoy_change_pct": [("zillow_raw_files", "inventory_count")],
+                }),
+            },
+        )
     )
 
 
@@ -355,16 +443,23 @@ def fact_market_heat_index(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_transformed)),
-            "columns": MetadataValue.json(df_transformed.columns),
-            "geography_levels": MetadataValue.json(
-                df_transformed["geography_level"].unique().to_list()
-            ),
-            "date_range": MetadataValue.text(
-                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_transformed,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_transformed["geography_level"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("zillow_raw_files", "RegionID")],
+                    "date": [("zillow_raw_files", "date")],
+                    "heat_index": [("zillow_raw_files", "heat_index")],
+                    "geography_level": [("zillow_raw_files", "RegionType")],
+                    "mom_change": [("zillow_raw_files", "heat_index")],
+                    "yoy_change": [("zillow_raw_files", "heat_index")],
+                    "market_temperature": [("zillow_raw_files", "heat_index")],
+                }),
+            },
+        )
     )
 
 
@@ -441,17 +536,25 @@ def fact_affordability_metrics(context: AssetExecutionContext) -> MaterializeRes
     context.log.info(f"Saved {len(df_transformed):,} rows to {output_path}")
 
     return MaterializeResult(
-        metadata={
-            "row_count": MetadataValue.int(len(df_transformed)),
-            "columns": MetadataValue.json(df_transformed.columns),
-            "geography_levels": MetadataValue.json(
-                df_transformed["geography_level"].unique().to_list()
-            ),
-            "metric_types": MetadataValue.json(
-                df_transformed["metric_type"].unique().to_list()
-            ),
-            "date_range": MetadataValue.text(
-                f"{df_transformed['date'].min()} to {df_transformed['date'].max()}"
-            ),
-        }
+        metadata=polars_metadata(
+            df_transformed,
+            extra={
+                "geography_levels": MetadataValue.json(
+                    df_transformed["geography_level"].unique().to_list()
+                ),
+                "metric_types": MetadataValue.json(
+                    df_transformed["metric_type"].unique().to_list()
+                ),
+                "dagster/column_lineage": build_column_lineage({
+                    "region_id": [("zillow_raw_files", "RegionID")],
+                    "date": [("zillow_raw_files", "date")],
+                    "value": [("zillow_raw_files", "value")],
+                    "geography_level": [("zillow_raw_files", "RegionType")],
+                    "metric_type": [("zillow_raw_files", "metric_type")],
+                    "down_payment_pct": [("zillow_raw_files", "down_payment_pct")],
+                    "mom_change_pct": [("zillow_raw_files", "value")],
+                    "yoy_change_pct": [("zillow_raw_files", "value")],
+                }),
+            },
+        )
     )
