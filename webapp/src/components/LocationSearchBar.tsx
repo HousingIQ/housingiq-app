@@ -292,21 +292,6 @@ export function LocationSearchBar({
         )}
       </div>
 
-      {/* Quick Stats */}
-      <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <span className={cn('h-2 w-2 rounded-full', 'bg-blue-500')} />
-          50 States
-        </span>
-        <span className="flex items-center gap-1">
-          <span className={cn('h-2 w-2 rounded-full', 'bg-emerald-500')} />
-          900+ Metros
-        </span>
-        <span className="flex items-center gap-1">
-          <span className={cn('h-2 w-2 rounded-full', 'bg-orange-500')} />
-          3,000+ Counties
-        </span>
-      </div>
     </div>
   );
 }
