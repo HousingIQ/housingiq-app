@@ -6,21 +6,20 @@ This script exports the `app` schema tables from local PostgreSQL
 and imports them into Neon PostgreSQL for production webapp use.
 
 Usage:
-    # Set environment variables
-    export LOCAL_DATABASE_URL="postgresql://housingiq:housingiq@localhost:5432/housingiq"
+    # Set NEON_DATABASE_URL in repo root .env file, or export it:
     export NEON_DATABASE_URL="postgresql://user:pass@host/dbname?sslmode=require"
 
-    # Run sync (with default filters: 5 years, top 5000 regions, ~450MB)
+    # Run sync (local DB is already filtered to popular regions, no additional filters)
     python scripts/sync_to_neon.py
 
-    # Sync all data (no filters)
-    python scripts/sync_to_neon.py --years 0 --top-regions 0
-
-    # Custom filters
-    python scripts/sync_to_neon.py --years 3 --top-regions 3000
+    # Clean sync (drop all Neon tables first, then sync fresh)
+    python scripts/sync_to_neon.py --clean
 
     # Dry run (show what would be synced)
     python scripts/sync_to_neon.py --dry-run
+
+    # Custom filters (if needed)
+    python scripts/sync_to_neon.py --years 3 --top-regions 3000
 """
 
 import argparse
@@ -29,7 +28,13 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+
 from dateutil.relativedelta import relativedelta
+from dotenv import load_dotenv
+
+# Load .env from repo root
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 import polars as pl
 from sqlalchemy import create_engine, text
@@ -41,9 +46,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Default filters to fit ~450MB on Neon free tier
-DEFAULT_YEARS = 5
-DEFAULT_TOP_REGIONS = 5000
+# Local DB is already filtered to popular regions with full history.
+# No additional filtering needed during sync.
+DEFAULT_YEARS = 0
+DEFAULT_TOP_REGIONS = 0
 
 # Tables to sync (app schema only - these are what the webapp needs)
 # Categorized by how they should be filtered
@@ -103,6 +109,15 @@ def ensure_app_schema(engine) -> None:
     with engine.connect() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS app"))
         conn.commit()
+
+
+def clean_app_schema(engine) -> None:
+    """Drop and recreate the entire app schema (removes all tables)."""
+    with engine.connect() as conn:
+        conn.execute(text("DROP SCHEMA IF EXISTS app CASCADE"))
+        conn.execute(text("CREATE SCHEMA app"))
+        conn.commit()
+    logger.info("Dropped and recreated app schema on Neon")
 
 
 def build_query(table_name: str, filters: SyncFilters) -> str:
@@ -273,6 +288,7 @@ def sync_all_tables(
     filters: SyncFilters,
     tables: list[str] | None = None,
     dry_run: bool = False,
+    clean: bool = False,
 ) -> list[SyncStats]:
     """
     Sync all app schema tables from local to Neon.
@@ -284,6 +300,14 @@ def sync_all_tables(
     logger.info("HousingIQ: Syncing app schema to Neon")
     logger.info("=" * 60)
     logger.info(f"Tables to sync: {', '.join(tables_to_sync)}")
+
+    # Clean Neon app schema if requested
+    if clean:
+        if dry_run:
+            logger.info("[DRY RUN] Would drop and recreate app schema on Neon")
+        else:
+            neon_engine = create_engine(neon_url)
+            clean_app_schema(neon_engine)
 
     # Show filter info
     if filters.years > 0 or filters.top_regions > 0:
@@ -378,6 +402,11 @@ def main() -> int:
         action="store_true",
         help="Show what would be synced without making changes",
     )
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Drop all tables in Neon app schema before syncing (fresh start)",
+    )
 
     args = parser.parse_args()
 
@@ -396,6 +425,7 @@ def main() -> int:
             filters=filters,
             tables=args.tables,
             dry_run=args.dry_run,
+            clean=args.clean,
         )
 
         # Return non-zero if any syncs failed

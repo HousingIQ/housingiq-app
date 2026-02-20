@@ -149,10 +149,18 @@ Polars-based transformations with YoY/MoM calculations.
 
 Loads final tables to PostgreSQL for the webapp using Polars ADBC bulk insert.
 
+**Popular Region Filter:** Both `app_regions` and `app_zhvi_values` apply a conservative region filter to keep the database small enough for Neon free tier (~167 MB). The filter is defined in `POPULAR_REGION_LIMITS`:
+- All States (no rank limit)
+- Top 100 Metros (by size_rank)
+- Top 100 Counties (by size_rank)
+- Top 200 Cities (by size_rank)
+
+This yields ~450 regions with full historical ZHVI data (1996-present) instead of all 26K regions with a 2-year date cutoff.
+
 | Asset | Target Table | Source |
 |-------|--------------|--------|
-| `app_regions` | `app.regions` | `dim_regions` |
-| `app_zhvi_values` | `app.zhvi_values` | `fct_zhvi_values` |
+| `app_regions` | `app.regions` | `dim_regions` (filtered to popular regions) |
+| `app_zhvi_values` | `app.zhvi_values` | `fct_zhvi_values` (filtered to popular regions, full history) |
 | `app_zori_values` | `app.zori_values` | `fct_zori_values` |
 | `app_inventory_values` | `app.inventory_values` | `fct_inventory_values` |
 | `app_market_heat_index` | `app.market_heat_index` | `fct_market_heat_index` |
@@ -234,7 +242,26 @@ telemetry:
 
 ```bash
 DATABASE_URL=postgresql://housingiq:housingiq@localhost:5432/housingiq
+NEON_DATABASE_URL=postgresql://user:pass@host/dbname?sslmode=require  # For Neon sync
 DATA_DIR=data  # Local data directory
+```
+
+### Neon Sync (`scripts/sync_to_neon.py`)
+
+Syncs `app` schema tables from local PostgreSQL to Neon (production). Loads `.env` from the repo root automatically.
+
+```bash
+# Sync all tables (local DB is already filtered, no additional filters needed)
+python scripts/sync_to_neon.py
+
+# Clean sync: drop all Neon tables first, then sync fresh
+python scripts/sync_to_neon.py --clean
+
+# Dry run (preview what would be synced)
+python scripts/sync_to_neon.py --dry-run
+
+# Or from repo root:
+make sync-to-neon
 ```
 
 ## Transform Examples

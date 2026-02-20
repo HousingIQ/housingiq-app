@@ -30,6 +30,9 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "adbc-driver-postgresql>=1.0.0",
     "connectorx>=0.3.0",  # For Polars read_database_uri
+
+    # Utilities
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]

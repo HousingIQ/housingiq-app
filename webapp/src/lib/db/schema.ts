@@ -80,18 +80,6 @@ export const marketSummary = appSchema.table('market_summary', {
   marketClassification: varchar('market_classification', { length: 20 }),
 });
 
-// FHFA House Price Index table (long-term appreciation data) - loaded by data platform
-export const fhfaHpi = appSchema.table('fhfa_hpi', {
-  level: varchar('level', { length: 50 }),
-  placeName: varchar('place_name', { length: 255 }),
-  placeId: varchar('place_id', { length: 50 }),
-  date: date('date'),
-  indexNsa: real('index_nsa'),
-  indexSa: real('index_sa'),
-  hpiType: varchar('hpi_type', { length: 50 }),
-  frequency: varchar('frequency', { length: 20 }),
-});
-
 // Relations
 export const regionsRelations = relations(regions, ({ many }) => ({
   zhviValues: many(zhviValues),
@@ -112,5 +100,4 @@ export type NewRegion = typeof regions.$inferInsert;
 export type ZhviValue = typeof zhviValues.$inferSelect;
 export type NewZhviValue = typeof zhviValues.$inferInsert;
 export type MarketSummary = typeof marketSummary.$inferSelect;
-export type FhfaHpi = typeof fhfaHpi.$inferSelect;
 

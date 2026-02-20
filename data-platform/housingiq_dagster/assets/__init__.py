@@ -10,11 +10,6 @@ from .database import (
     app_regions,
     app_zhvi_values,
 )
-from .fhfa import (
-    app_fhfa_hpi,
-    fhfa_hpi_transformed,
-    fhfa_raw_file,
-)
 from .transforms import (
     aggregate_market_summary,
     dimension_regions,
@@ -37,9 +32,6 @@ __all__ = [
     "zillow_raw_files",
     "zillow_zhvi_transformed",
     "zillow_zori_transformed",
-    # FHFA ingestion assets
-    "fhfa_raw_file",
-    "fhfa_hpi_transformed",
     # Polars transformation assets
     "fact_zhvi_values",
     "fact_zori_values",
@@ -52,5 +44,4 @@ __all__ = [
     "app_regions",
     "app_zhvi_values",
     "app_market_summary",
-    "app_fhfa_hpi",
 ]

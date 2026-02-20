@@ -5,7 +5,6 @@ Assets for loading transformed data into PostgreSQL app schema.
 Only final tables needed by the webapp are loaded to the database.
 """
 
-import datetime
 import os
 
 import polars as pl
@@ -18,6 +17,30 @@ from dagster import (
 
 from ..metadata import build_column_lineage, polars_metadata
 from ..paths import MART_DIR
+
+# Conservative region filter: All States + Top N by size_rank
+POPULAR_REGION_LIMITS: dict[str, int | None] = {
+    "State": None,    # all states
+    "Metro": 100,
+    "County": 100,
+    "City": 200,
+}
+
+
+def popular_region_filter() -> pl.Expr:
+    """Build Polars filter expression for popular regions."""
+    conditions = []
+    for geo_level, max_rank in POPULAR_REGION_LIMITS.items():
+        if max_rank is None:
+            conditions.append(pl.col("geography_level") == geo_level)
+        else:
+            conditions.append(
+                (pl.col("geography_level") == geo_level) & (pl.col("size_rank") <= max_rank)
+            )
+    expr = conditions[0]
+    for c in conditions[1:]:
+        expr = expr | c
+    return expr
 
 
 def get_postgres_connection_string() -> str:
@@ -74,6 +97,9 @@ def app_regions(context: AssetExecutionContext) -> MaterializeResult:
         return MaterializeResult(metadata={"status": "no_data"})
 
     df = pl.read_parquet(regions_path)
+
+    # Filter to popular regions only
+    df = df.filter(popular_region_filter())
 
     # Select and rename columns for webapp schema
     df_app = df.select([
@@ -138,12 +164,15 @@ def app_zhvi_values(context: AssetExecutionContext) -> MaterializeResult:
     context.log.info("Reading ZHVI values...")
     df = pl.read_parquet(values_path)
 
-    # Filter to smoothed + seasonally adjusted data from last 24 months only
-    cutoff = datetime.date.today() - datetime.timedelta(days=730)
+    # Load regions to get popular region IDs
+    regions_df = pl.read_parquet(MART_DIR / "dimension_regions.parquet")
+    popular_region_ids = regions_df.filter(popular_region_filter())["region_id"]
+
+    # Keep smoothed + SA, all dates, popular regions only
     df_app = df.filter(
         (pl.col("smoothed") == True)  # noqa: E712
         & (pl.col("seasonally_adjusted") == True)  # noqa: E712
-        & (pl.col("date") >= cutoff)
+        & (pl.col("region_id").is_in(popular_region_ids))
     )
 
     # Select columns for webapp schema
@@ -199,6 +228,9 @@ def app_market_summary(context: AssetExecutionContext) -> MaterializeResult:
         return MaterializeResult(metadata={"status": "no_data"})
 
     df = pl.read_parquet(summary_path)
+
+    # Filter to popular regions only
+    df = df.filter(popular_region_filter())
 
     ensure_app_schema()
     drop_and_create_table("app.market_summary", df)

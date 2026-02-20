@@ -120,11 +120,19 @@ Fact table containing Zillow Home Value Index time series data.
 
 ## Data Volume Estimates
 
-| Table | Rows (State-level) | Rows (Full) |
-|-------|-------------------|-------------|
-| users | ~100 | ~100 |
-| regions | ~50 | 75,292 |
-| zhvi_values | ~173,000 | 122,000,000+ |
+The app database uses a "popular regions" filter to keep data manageable:
+- All 51 States
+- Top 100 Metros (by size_rank)
+- Top 100 Counties (by size_rank)
+- Top 200 Cities (by size_rank)
+
+This yields ~450 regions with full historical data (1996-present).
+
+| Table | Rows (Popular Regions) |
+|-------|----------------------|
+| users | ~100 |
+| regions | ~450 |
+| zhvi_values | ~1,500,000 |
 
 ## Drizzle Schema Code
 

@@ -51,11 +51,38 @@ zillow_manifest → zillow_raw_files → zillow_zhvi_transformed
 ## Commands
 
 ```bash
-make dagster           # Start Dagster UI (http://localhost:3001)
+make dagster              # Start Dagster UI (http://localhost:3001)
 make dagster-materialize  # Materialize all assets
-make test              # Run tests
-make lint              # Run linter
+make test                 # Run tests
+make lint                 # Run linter
 ```
+
+## Neon Sync
+
+Sync local `app` schema to Neon (production). Set `NEON_DATABASE_URL` in the repo root `.env` file.
+
+```bash
+# From repo root
+make sync-to-neon
+
+# Or directly
+python scripts/sync_to_neon.py              # Sync all tables
+python scripts/sync_to_neon.py --clean      # Drop all Neon tables first, then sync fresh
+python scripts/sync_to_neon.py --dry-run    # Preview what would be synced
+```
+
+## Region Filtering
+
+The `app_regions` and `app_zhvi_values` assets use a "popular regions" filter to keep the database small (~167 MB, fits Neon free tier):
+
+| Geography Level | Limit |
+|----------------|-------|
+| State | All (51) |
+| Metro | Top 100 |
+| County | Top 100 |
+| City | Top 200 |
+
+This gives ~450 regions with full ZHVI history (1996-present). Configured via `POPULAR_REGION_LIMITS` in `database.py`.
 
 ## Why Polars Instead of dbt?
 
