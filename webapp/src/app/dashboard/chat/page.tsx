@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import type { UIMessage } from "ai";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -31,6 +31,7 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
+import { ChatStats } from "@/components/ai-elements/chat-stats";
 import { Spinner } from "@/components/ui/spinner";
 import { AVAILABLE_MODELS, DEFAULT_MODEL } from "@/lib/ai/providers";
 
@@ -75,6 +76,12 @@ const MessageParts = ({
   );
 };
 
+interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
@@ -98,6 +105,32 @@ export default function ChatPage() {
 
   const isStreaming = status === "streaming";
 
+  // Accumulate token usage from assistant message metadata
+  const sessionTokenUsage = useMemo<TokenUsage>(() => {
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let totalTokens = 0;
+
+    for (const msg of messages) {
+      if (msg.role === "assistant") {
+        const meta = msg.metadata as
+          | { usage?: { inputTokens?: number; outputTokens?: number } }
+          | undefined;
+        if (meta?.usage) {
+          const inp = meta.usage.inputTokens ?? 0;
+          const out = meta.usage.outputTokens ?? 0;
+          inputTokens += inp;
+          outputTokens += out;
+          totalTokens += inp + out;
+        }
+      }
+    }
+
+    return { inputTokens, outputTokens, totalTokens };
+  }, [messages]);
+
+  const messageCount = messages.filter((m) => m.role === "user").length;
+
   const handleSubmit = ({ text }: { text: string }) => {
     if (!text.trim()) return;
     sendMessage({
@@ -111,10 +144,21 @@ export default function ChatPage() {
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen">
       {/* Header */}
       <div className="border-b bg-white px-6 py-4">
-        <h1 className="text-xl font-semibold">Chat</h1>
-        <p className="text-sm text-gray-500">
-          Ask questions about housing market trends and data
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">Chat</h1>
+            <p className="text-sm text-gray-500">
+              Ask questions about housing market trends and data
+            </p>
+          </div>
+        </div>
+        {/* Stats bar */}
+        <div className="mt-2">
+          <ChatStats
+            sessionTokenUsage={sessionTokenUsage}
+            messageCount={messageCount}
+          />
+        </div>
       </div>
 
       {/* Messages */}

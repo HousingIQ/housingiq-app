@@ -66,10 +66,29 @@ export async function POST(request: Request) {
         providerOptions: getProviderOptions(modelId),
       });
 
-      writer.merge(result.toUIMessageStream({ sendReasoning: true }));
+      writer.merge(
+        result.toUIMessageStream({
+          sendReasoning: true,
+          messageMetadata: ({ part }) => {
+            if (part.type === "finish") {
+              return {
+                usage: part.totalUsage,
+                model: modelId,
+              };
+            }
+            return undefined;
+          },
+        }),
+      );
     },
     onError: () => "Oops, an error occurred!",
   });
 
-  return createUIMessageStreamResponse({ stream });
+  return createUIMessageStreamResponse({
+    stream,
+    headers: {
+      "X-RateLimit-Remaining": String(remaining),
+      "X-RateLimit-Reset": String(reset),
+    },
+  });
 }
