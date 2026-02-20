@@ -65,6 +65,24 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Guest Login Hint */}
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+              <p className="text-sm text-blue-800 font-medium mb-1">Guest Access</p>
+              <p className="text-xs text-blue-700 mb-2">
+                Try the app with our test account:
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('test@housingiq.com');
+                  setPassword('TestPassword123!');
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 underline cursor-pointer"
+              >
+                Fill test credentials
+              </button>
+            </div>
+
             {/* Email/Password Form */}
             <form onSubmit={handleCredentialsSignIn} className="space-y-4">
               <div className="space-y-2">
