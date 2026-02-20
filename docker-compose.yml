@@ -88,6 +88,8 @@ services:
       # Google OAuth (optional - set in .env if needed)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # AI SDK Gateway
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

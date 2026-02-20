@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { auth, signOut } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map } from 'lucide-react';
+import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map, Sparkles } from 'lucide-react';
 
 export default async function DashboardLayout({
   children,
@@ -38,6 +39,15 @@ export default async function DashboardLayout({
                 >
                   <TrendingUp className="h-5 w-5" />
                   Dashboard
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/dashboard/chat"
+                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <Sparkles className="h-5 w-5 text-purple-500" />
+                  AI Chat
                 </Link>
               </li>
               <li>
@@ -83,10 +93,12 @@ export default async function DashboardLayout({
           <div className="p-4 border-t">
             <div className="flex items-center gap-3 mb-3">
               {session.user?.image ? (
-                <img
+                <Image
                   src={session.user.image}
                   alt={session.user.name || 'User'}
-                  className="w-10 h-10 rounded-full"
+                  width={40}
+                  height={40}
+                  className="rounded-full"
                 />
               ) : (
                 <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">

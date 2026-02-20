@@ -6,3 +6,4 @@ webapp-deploy-key.pub
 # Data platform local data
 data-platform/data/
 data-platform/.dagster/
+reference_apps/
