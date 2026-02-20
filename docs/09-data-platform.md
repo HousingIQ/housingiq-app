@@ -86,9 +86,6 @@ graph TD
         TZ --> DR[dim_regions]
         TZ --> FZ[fct_zhvi_values]
         TR --> FR[fct_zori_values]
-        R --> FI[fct_inventory_values]
-        R --> FH[fct_market_heat_index]
-        R --> FA[fct_affordability_metrics]
         FZ --> MS[market_summary]
         FR --> MS
         DR --> MS
@@ -97,10 +94,6 @@ graph TD
     subgraph Load["PostgreSQL app.*"]
         DR --> AR[app.regions]
         FZ --> AZ[app.zhvi_values]
-        FR --> AO[app.zori_values]
-        FI --> AI[app.inventory_values]
-        FH --> AH[app.market_heat_index]
-        FA --> AA[app.affordability_metrics]
         MS --> AM[app.market_summary]
     end
 ```
@@ -120,16 +113,18 @@ Downloads and transforms Zillow CSV data to Parquet files.
 
 **Configured download categories** (from `ingestion/sources/zillow/config.py`):
 
-| Category | Description |
-|----------|-------------|
-| `zhvi` | Zillow Home Value Index |
-| `zori` | Zillow Observed Rent Index |
-| `invt_fs` | For-Sale Inventory |
-| `market_temp_index` | Market Heat Index |
-| `mortgage_payment` | Mortgage Payment Estimates |
-| `total_monthly_payment` | Total Monthly Payment Estimates |
-| `new_homeowner_income_needed` | Income Required (Homeowner) |
-| `new_renter_income_needed` | Income Required (Renter) |
+| Category | Description | Used in App |
+|----------|-------------|-------------|
+| `zhvi` | Zillow Home Value Index | Yes (primary) |
+| `zori` | Zillow Observed Rent Index | Yes (rent data) |
+| `invt_fs` | For-Sale Inventory | Downloaded but not loaded to app DB |
+| `market_temp_index` | Market Heat Index | Downloaded but not loaded to app DB |
+| `mortgage_payment` | Mortgage Payment Estimates | Downloaded but not loaded to app DB |
+| `total_monthly_payment` | Total Monthly Payment Estimates | Downloaded but not loaded to app DB |
+| `new_homeowner_income_needed` | Income Required (Homeowner) | Downloaded but not loaded to app DB |
+| `new_renter_income_needed` | Income Required (Renter) | Downloaded but not loaded to app DB |
+
+> **Note**: Only ZHVI and ZORI data are currently loaded to the PostgreSQL app database and used by the webapp. Other categories are downloaded and transformed to Parquet but not loaded to the app DB to keep the database size manageable.
 
 ### 2. Transforms (`transforms.py`)
 
@@ -140,9 +135,6 @@ Polars-based transformations with YoY/MoM calculations.
 | `dim_regions` | `zillow_zhvi_transformed` | Geographic dimension table with display names |
 | `fct_zhvi_values` | `zillow_zhvi_transformed` | ZHVI fact table with MoM/YoY change metrics |
 | `fct_zori_values` | `zillow_zori_transformed` | ZORI fact table with MoM/YoY change metrics |
-| `fct_inventory_values` | `zillow_raw_files` | Inventory fact table from raw CSVs |
-| `fct_market_heat_index` | `zillow_raw_files` | Market heat index (0-100) with temperature classification |
-| `fct_affordability_metrics` | `zillow_raw_files` | Mortgage payments, income needed metrics |
 | `market_summary` | `fct_zhvi_values`, `fct_zori_values`, `dim_regions` | Pre-computed market overview for dashboard |
 
 ### 3. Database Loading (`database.py`)
@@ -161,10 +153,6 @@ This yields ~450 regions with full historical ZHVI data (1996-present) instead o
 |-------|--------------|--------|
 | `app_regions` | `app.regions` | `dim_regions` (filtered to popular regions) |
 | `app_zhvi_values` | `app.zhvi_values` | `fct_zhvi_values` (filtered to popular regions, full history) |
-| `app_zori_values` | `app.zori_values` | `fct_zori_values` |
-| `app_inventory_values` | `app.inventory_values` | `fct_inventory_values` |
-| `app_market_heat_index` | `app.market_heat_index` | `fct_market_heat_index` |
-| `app_affordability_metrics` | `app.affordability_metrics` | `fct_affordability_metrics` |
 | `app_market_summary` | `app.market_summary` | `market_summary` |
 
 ## Schedules

@@ -8,143 +8,97 @@
 4. [Web Application Architecture](#web-application-architecture)
 5. [Database Architecture](#database-architecture)
 6. [Authentication Flow](#authentication-flow)
-7. [Data Flow](#data-flow)
-8. [Deployment Architecture](#deployment-architecture)
+7. [AI Chat Architecture](#ai-chat-architecture)
+8. [Data Flow](#data-flow)
+9. [Deployment Architecture](#deployment-architecture)
 
 ---
 
 ## Full System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            EXTERNAL DATA SOURCES                             │
-│                                                                              │
-│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐   │
-│  │  Zillow Research │     │   Redfin (Future)│     │  Census (Future) │   │
-│  │     CSV Files    │     │    CSV/API       │     │       API        │   │
-│  └──────────────────┘     └──────────────────┘     └──────────────────┘   │
-└────────────────────────────────┬────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            DATA PLATFORM LAYER                               │
-│                        (Dagster + Polars + Great Expectations)               │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  DAGSTER ORCHESTRATION (localhost:3001)                            │    │
-│  │  Software-Defined Assets with Automatic Lineage                    │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                 │                                            │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  INGESTION LAYER (housingiq_dagster/assets/zillow.py)             │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  1. Zillow Scraper    → Discover CSV URLs                    │ │    │
-│  │  │  2. Zillow Downloader → Fetch CSVs to data/zhvi/, data/zori/ │ │    │
-│  │  │  3. Zillow Transformer → Parse CSVs → Parquet files          │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                 │                                            │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  LOCAL DATA LAKE (data/processed/*.parquet)                       │    │
-│  │  • zhvi_regions.parquet  • zhvi_values.parquet                    │    │
-│  │  • zori_regions.parquet  • zori_values.parquet                    │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                 │                                            │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  POLARS TRANSFORMATIONS (housingiq_dagster/assets/transforms.py)  │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  • dim_regions        → Dimension table with display names   │ │    │
-│  │  │  • fct_zhvi_values    → Add YoY/MoM calculations             │ │    │
-│  │  │  • fct_zori_values    → Add YoY/MoM calculations             │ │    │
-│  │  │  • market_summary     → Pre-aggregated dashboard metrics     │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                 │                                            │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  GREAT EXPECTATIONS VALIDATION                                     │    │
-│  │  • Schema validation  • Value range checks  • Completeness tests  │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                 │                                            │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  DATABASE LOADING (housingiq_dagster/assets/database.py)          │    │
-│  │  • app.regions  • app.zhvi_values  • app.zori_values              │    │
-│  │  • app.market_summary (via ADBC for fast bulk insert)             │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-└────────────────────────────────┬────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         DATABASE LAYER (PostgreSQL 16)                       │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  app.* Schema (Serving Layer)                                      │    │
-│  │  • regions          • zhvi_values                                  │    │
-│  │  • zori_values      • market_summary                               │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  public Schema (Auth)                                              │    │
-│  │  • users                                                            │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-└────────────────────────────────┬────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       WEB APPLICATION LAYER (Next.js 15)                     │
-│                              (localhost:3000)                                │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  SERVER LAYER                                                       │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  API Routes (src/app/api/*)                                  │ │    │
-│  │  │  • /api/market/all           → List all markets              │ │    │
-│  │  │  • /api/market/[regionId]    → Single market details         │ │    │
-│  │  │  • /api/market/compare       → Compare markets               │ │    │
-│  │  │  • /api/market/rankings      → Market rankings               │ │    │
-│  │  │  • /api/regions/search       → Location search               │ │    │
-│  │  │  • /api/auth/*               → NextAuth.js endpoints         │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  Drizzle ORM (src/lib/db/)                                   │ │    │
-│  │  │  • schema.ts  → Type-safe schema definitions                 │ │    │
-│  │  │  • index.ts   → Database client                              │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  NextAuth.js v5 (src/lib/auth/)                              │ │    │
-│  │  │  • config.ts  → Auth providers (Google OAuth, Credentials)   │ │    │
-│  │  │  • index.ts   → Auth utilities                               │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                 │                                            │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  CLIENT LAYER (React Server Components + Client Components)        │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  Pages (src/app/)                                            │ │    │
-│  │  │  • /                  → Landing page                         │ │    │
-│  │  │  • /login             → Login/signup                         │ │    │
-│  │  │  • /dashboard         → Main dashboard (protected)           │ │    │
-│  │  │  • /dashboard/compare → Market comparison                    │ │    │
-│  │  │  • /dashboard/rankings → Market rankings                     │ │    │
-│  │  │  • /dashboard/calculator → ROI calculator                    │ │    │
-│  │  │  • /dashboard/map     → Map view (future)                    │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  │  ┌──────────────────────────────────────────────────────────────┐ │    │
-│  │  │  Components (src/components/)                                │ │    │
-│  │  │  • LocationSearchBar    • MarketOverviewCard                │ │    │
-│  │  │  • PriceTrendChart      • ui/* (shadcn/ui components)        │ │    │
-│  │  └──────────────────────────────────────────────────────────────┘ │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           EXTERNAL SERVICES                                  │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  Google OAuth 2.0                                                   │    │
-│  │  • User authentication  • Profile information                      │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph Sources["EXTERNAL DATA SOURCES"]
+        ZILLOW["Zillow Research\nCSV Files"]
+    end
+
+    subgraph DataPlatform["DATA PLATFORM LAYER\n(Dagster + Polars + Great Expectations)"]
+        direction TB
+        DAGSTER["Dagster Orchestration\n(localhost:3001)\nSoftware-Defined Assets"]
+
+        subgraph IngestionLayer["Ingestion Layer"]
+            SCRAPE["1. Zillow Scraper\nDiscover CSV URLs"]
+            DOWNLOAD["2. Zillow Downloader\nFetch CSVs to data/raw/"]
+            TRANSFORM["3. Zillow Transformer\nParse CSVs to Parquet"]
+            SCRAPE --> DOWNLOAD --> TRANSFORM
+        end
+
+        subgraph DataLake["Local Data Lake"]
+            RAW["data/raw/\nDownloaded CSVs"]
+            STAGING["data/staging/\nNormalized Parquet"]
+            MART["data/mart/\nFinal Parquet"]
+        end
+
+        subgraph PolarsTransforms["Polars Transformations"]
+            DIM["dim_regions\n(display names)"]
+            FCT_Z["fct_zhvi_values\n(YoY/MoM)"]
+            FCT_R["fct_zori_values\n(YoY/MoM)"]
+            MKT["market_summary\n(pre-aggregated)"]
+        end
+
+        GX["Great Expectations\nSchema | Range | Completeness"]
+
+        subgraph DBLoad["Database Loading (ADBC)"]
+            LOAD["app.regions | app.zhvi_values\napp.zori_values | app.market_summary\nPopular Regions Filter applied"]
+        end
+
+        DAGSTER --> IngestionLayer
+        IngestionLayer --> DataLake
+        DataLake --> PolarsTransforms
+        PolarsTransforms --> GX --> DBLoad
+    end
+
+    subgraph Database["DATABASE LAYER (PostgreSQL 16)"]
+        subgraph AppSchema["app.* Schema (Serving)"]
+            REGIONS[("regions")]
+            ZHVI[("zhvi_values")]
+            ZORI[("zori_values")]
+            MKTSUMMARY[("market_summary")]
+        end
+        subgraph PubSchema["public Schema (Auth)"]
+            USERS[("users")]
+        end
+    end
+
+    subgraph WebApp["WEB APPLICATION LAYER (Next.js 16, localhost:3000)"]
+        subgraph ServerLayer["Server Layer"]
+            API["API Routes\n/api/market/* | /api/chat\n/api/regions/* | /api/auth/*"]
+            ORM["Drizzle ORM\nType-safe schema"]
+            AUTH["NextAuth.js v5\nGoogle OAuth + Credentials"]
+            AI_LIB["AI Integration\n@ai-sdk/gateway + Upstash"]
+        end
+
+        subgraph ClientLayer["Client Layer (React 19)"]
+            PAGES["Pages\n/ | /login | /dashboard\n/chat | /compare | /rankings\n/calculator | /map"]
+            COMPONENTS["Components\nLocationSearchBar | MarketOverviewCard\nPriceTrendChart | MarketHealthScore\nai-elements/* | ui/*"]
+            HOOKS["TanStack Query Hooks\nuseMarketStats | useMarketData\nuseTrendData | useRankings"]
+        end
+    end
+
+    subgraph External["EXTERNAL SERVICES"]
+        GOOGLE["Google OAuth 2.0\nAuthentication"]
+        AI_GW["AI Gateway\nGPT | Claude | Gemini"]
+        UPSTASH["Upstash Redis\nRate Limiting"]
+    end
+
+    ENDUSERS["End Users"]
+
+    ZILLOW --> DataPlatform
+    DBLoad --> Database
+    Database --> ServerLayer
+    ServerLayer --> ClientLayer
+    WebApp --> ENDUSERS
+    WebApp <--> External
 ```
 
 ---
@@ -171,6 +125,8 @@ data-platform/
 │   │   ├── transforms.py    # Polars transformations
 │   │   └── database.py      # PostgreSQL loading
 │   ├── definitions.py       # Dagster definitions
+│   ├── transforms_logic.py  # Business logic (YoY/MoM, market classification)
+│   ├── paths.py             # Data layer paths (RAW_DIR, STAGING_DIR, MART_DIR)
 │   └── schedules.py         # Scheduled jobs
 ├── ingestion/sources/zillow/
 │   ├── scraper.py          # Discover CSV URLs
@@ -183,28 +139,28 @@ data-platform/
 
 ### 2. Database Layer
 
-**Purpose**: Persistent storage for both raw and serving data
+**Purpose**: Persistent storage for both serving data and auth
 
 **Schema Design**:
 - `app.*` schema: Serving layer (optimized for webapp queries)
 - `public.*` schema: Authentication tables
 
-**Connection**: PostgreSQL 16 via Docker Compose
+**Connection**: PostgreSQL 16 via Docker Compose (local) or Neon (production)
 
 ### 3. Web Application Layer
 
-**Purpose**: User interface and API
+**Purpose**: User interface, API, and AI integration
 
-**Framework**: Next.js 15 with App Router
+**Framework**: Next.js 16 with App Router
 - **Server Components**: Default rendering mode
 - **Client Components**: Interactive elements
 - **API Routes**: Backend endpoints
-- **Middleware**: Authentication checks
+- **TanStack Query**: Client-side data fetching with caching
 
 **Key Patterns**:
 - Server-side rendering (SSR) for SEO
-- Client-side data fetching for interactivity
-- Optimistic UI updates
+- Client-side data fetching with TanStack Query for interactivity
+- Streaming AI responses via Vercel AI SDK
 - Type-safe database queries with Drizzle ORM
 
 ---
@@ -213,28 +169,29 @@ data-platform/
 
 ### Asset Dependency Graph
 
-```
-zillow_zhvi_scraped
-       ↓
-zillow_zhvi_downloaded
-       ↓
-zillow_zhvi_transformed
-       ↓
-┌──────┴──────┬─────────┐
-│             │         │
-dim_regions   fct_zhvi_values   fct_zori_values
-│             │         │
-└──────┬──────┴─────────┘
-       ↓
-market_summary
-       ↓
-┌──────┴──────┬─────────┬──────────┐
-│             │         │          │
-app_regions   app_zhvi   app_zori   app_market_summary
-       │             │         │          │
-       └──────┬──────┴─────────┴──────────┘
-              ↓
-       PostgreSQL app.* schema
+```mermaid
+flowchart TD
+    A[zillow_manifest] --> B[zillow_raw_files]
+    B --> C[zillow_zhvi_transformed]
+    B --> D[zillow_zori_transformed]
+
+    C --> E[dim_regions]
+    C --> F[fct_zhvi_values]
+    D --> G[fct_zori_values]
+
+    E --> H[market_summary]
+    F --> H
+    G --> H
+
+    E --> I[app_regions]
+    F --> J[app_zhvi_values]
+    G --> K[app_zori_values]
+    H --> L[app_market_summary]
+
+    I --> M[("PostgreSQL app.* schema")]
+    J --> M
+    K --> M
+    L --> M
 ```
 
 ### Transformation Pipeline (Polars)
@@ -246,61 +203,19 @@ app_regions   app_zhvi   app_zori   app_market_summary
 - Better error messages
 - Same code runs on laptop and production
 
-**Example Transform** (`fct_zhvi_values`):
-```python
-df_transformed = (
-    df
-    .sort(["region_id", "date"])
-    .with_columns([
-        # Previous month value
-        pl.col("value")
-        .shift(1)
-        .over("region_id")
-        .alias("prev_month_value"),
-        
-        # Previous year value (12 months ago)
-        pl.col("value")
-        .shift(12)
-        .over("region_id")
-        .alias("prev_year_value"),
-    ])
-    .with_columns([
-        # Month-over-month change %
-        (
-            (pl.col("value") - pl.col("prev_month_value"))
-            / pl.col("prev_month_value")
-            * 100
-        ).alias("mom_change_pct"),
-        
-        # Year-over-year change %
-        (
-            (pl.col("value") - pl.col("prev_year_value"))
-            / pl.col("prev_year_value")
-            * 100
-        ).alias("yoy_change_pct"),
-    ])
-)
-```
-
 ### Data Quality Gates
 
 **Great Expectations** validates data before loading:
-
-```python
-# Example expectations for ZHVI values
-expectations = [
-    expect_column_values_to_not_be_null("region_id"),
-    expect_column_values_to_be_between("value", min_value=0, max_value=10_000_000),
-    expect_column_values_to_be_between("yoy_change_pct", min_value=-50, max_value=50),
-    expect_table_row_count_to_be_between(min_value=100_000),
-]
-```
+- Schema validation (column names, types)
+- Value range checks (ZHVI values between $0-$10M)
+- Completeness tests (no null region_ids)
+- Row count thresholds
 
 ---
 
 ## Web Application Architecture
 
-### Next.js 15 App Router
+### Next.js 16 App Router
 
 **Routing Structure**:
 ```
@@ -309,20 +224,32 @@ src/app/
 ├── login/page.tsx             # Login (/login)
 ├── signup/page.tsx            # Signup (/signup)
 ├── dashboard/
-│   ├── page.tsx              # Dashboard (/dashboard)
-│   ├── compare/page.tsx      # Compare (/dashboard/compare)
-│   ├── rankings/page.tsx     # Rankings (/dashboard/rankings)
-│   ├── calculator/page.tsx   # Calculator (/dashboard/calculator)
-│   └── layout.tsx            # Shared dashboard layout
+│   ├── layout.tsx             # Sidebar layout (protected)
+│   ├── page.tsx               # Dashboard (/dashboard)
+│   ├── chat/page.tsx          # AI Chat (/dashboard/chat)
+│   ├── compare/page.tsx       # Compare (/dashboard/compare)
+│   ├── rankings/page.tsx      # Rankings (/dashboard/rankings)
+│   ├── calculator/page.tsx    # Calculator (/dashboard/calculator)
+│   └── map/page.tsx           # Map (/dashboard/map)
 └── api/
-    ├── auth/[...nextauth]/   # NextAuth.js catch-all
+    ├── auth/
+    │   ├── [...nextauth]/     # NextAuth.js catch-all
+    │   └── signup/            # POST /api/auth/signup
+    ├── chat/
+    │   ├── route.ts           # POST /api/chat (streaming)
+    │   └── usage/route.ts     # GET /api/chat/usage
     ├── market/
-    │   ├── all/route.ts      # GET /api/market/all
-    │   ├── [regionId]/route.ts # GET /api/market/:regionId
-    │   ├── compare/route.ts  # POST /api/market/compare
-    │   └── rankings/route.ts # GET /api/market/rankings
+    │   ├── all/route.ts       # GET /api/market/all
+    │   ├── [regionId]/
+    │   │   ├── route.ts       # GET /api/market/:regionId
+    │   │   ├── trends/route.ts    # GET trends
+    │   │   ├── bedrooms/route.ts  # GET bedroom breakdown
+    │   │   └── property-types/route.ts  # GET property types
+    │   ├── compare/route.ts   # GET /api/market/compare
+    │   ├── rankings/route.ts  # GET /api/market/rankings
+    │   └── stats/route.ts     # GET /api/market/stats
     └── regions/
-        └── search/route.ts   # GET /api/regions/search
+        └── search/route.ts    # GET /api/regions/search
 ```
 
 ### Server vs Client Components
@@ -334,48 +261,10 @@ src/app/
 - Use for: layouts, static pages, data fetching
 
 **Client Components** (`'use client'`):
-- Interactive elements
-- React hooks (useState, useEffect)
-- Browser APIs
-- Use for: forms, charts, search bars, modals
-
-**Example**:
-```typescript
-// Server Component (default)
-export default async function DashboardPage() {
-  const marketData = await db.query.marketSummary.findMany();
-  return <MarketOverviewCard data={marketData} />;
-}
-
-// Client Component
-'use client';
-export function LocationSearchBar() {
-  const [query, setQuery] = useState('');
-  // ... interactive logic
-}
-```
-
-### API Routes
-
-**Pattern**: File-based routing in `app/api/`
-
-**Example** (`app/api/market/all/route.ts`):
-```typescript
-import { NextRequest, NextResponse } from 'next/server';
-import { db, marketSummary } from '@/lib/db';
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const geographyLevel = searchParams.get('geographyLevel') || 'State';
-  
-  const results = await db
-    .select()
-    .from(marketSummary)
-    .where(eq(marketSummary.geographyLevel, geographyLevel));
-  
-  return NextResponse.json({ data: results });
-}
-```
+- Interactive elements (charts, search, forms)
+- React hooks (useState, useEffect, useChat)
+- TanStack Query for server state
+- Use for: dashboard, charts, search bars, AI chat
 
 ---
 
@@ -400,9 +289,6 @@ CREATE TABLE app.regions (
     metro VARCHAR(255),
     size_rank INTEGER                 -- Population rank
 );
-
-CREATE INDEX idx_regions_geography ON app.regions(geography_level);
-CREATE INDEX idx_regions_state ON app.regions(state);
 ```
 
 #### `app.zhvi_values` (Fact Table - Home Values)
@@ -422,14 +308,7 @@ CREATE TABLE app.zhvi_values (
     mom_change_pct REAL,              -- Month-over-month change %
     yoy_change_pct REAL               -- Year-over-year change %
 );
-
-CREATE INDEX idx_zhvi_region ON app.zhvi_values(region_id);
-CREATE INDEX idx_zhvi_date ON app.zhvi_values(date);
 ```
-
-#### `app.zori_values` (Fact Table - Rent Values)
-
-Similar structure to `zhvi_values` but for rent data.
 
 #### `app.market_summary` (Pre-Aggregated)
 
@@ -443,27 +322,18 @@ CREATE TABLE app.market_summary (
     state_name VARCHAR(100),
     metro VARCHAR(255),
     size_rank INTEGER,
-    
-    -- Latest home value metrics
     current_home_value REAL,
     home_value_yoy_pct REAL,
     home_value_mom_pct REAL,
     home_value_date DATE,
-    
-    -- Latest rent metrics
     current_rent_value REAL,
     rent_yoy_pct REAL,
     rent_mom_pct REAL,
     rent_value_date DATE,
-    
-    -- Derived metrics
     price_to_rent_ratio REAL,
     gross_rent_yield_pct REAL,
     market_classification VARCHAR(20)  -- 'Hot', 'Warm', 'Cold'
 );
-
-CREATE INDEX idx_market_summary_geography ON app.market_summary(geography_level);
-CREATE INDEX idx_market_summary_classification ON app.market_summary(market_classification);
 ```
 
 #### `public.users` (Authentication)
@@ -473,7 +343,7 @@ CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(255),
-    image TEXT,                       -- Google profile picture
+    image TEXT,
     password_hash VARCHAR(255),       -- For email/password auth
     google_id VARCHAR(255) UNIQUE,    -- For Google OAuth
     created_at TIMESTAMP DEFAULT NOW(),
@@ -481,122 +351,70 @@ CREATE TABLE users (
 );
 ```
 
-### Drizzle ORM Schema
-
-**Type-safe queries** with full IntelliSense:
-
-```typescript
-// src/lib/db/schema.ts
-export const regions = appSchema.table('regions', {
-  regionId: varchar('region_id', { length: 100 }).primaryKey(),
-  regionName: varchar('region_name', { length: 255 }),
-  displayName: varchar('display_name', { length: 500 }),
-  geographyLevel: varchar('geography_level', { length: 50 }),
-  // ...
-});
-
-export type Region = typeof regions.$inferSelect;
-export type NewRegion = typeof regions.$inferInsert;
-```
-
-**Query Example**:
-```typescript
-// Type-safe, auto-complete works!
-const states = await db
-  .select()
-  .from(regions)
-  .where(eq(regions.geographyLevel, 'State'))
-  .orderBy(regions.sizeRank);
-```
-
 ---
 
 ## Authentication Flow
 
-### NextAuth.js v5 (Beta)
+### NextAuth.js v5
 
 **Providers**:
 1. **Google OAuth**: Primary method
 2. **Credentials**: Email/password fallback
 
 **Flow**:
-```
-┌──────────┐
-│  User    │
-│ clicks   │
-│ "Login"  │
-└────┬─────┘
-     │
-     ▼
-┌─────────────────┐
-│ Next.js /login  │
-│     page        │
-└────┬────────────┘
-     │
-     ├───── Google OAuth ─────┐
-     │                        ▼
-     │              ┌─────────────────┐
-     │              │ Google OAuth 2.0│
-     │              │   (redirect)    │
-     │              └────┬────────────┘
-     │                   │
-     │                   ▼
-     │              ┌─────────────────┐
-     │              │ User authorizes │
-     │              │  (Google page)  │
-     │              └────┬────────────┘
-     │                   │
-     │                   ▼
-     │              ┌─────────────────┐
-     │              │  Callback URL   │
-     │              │ /api/auth/cb... │
-     │              └────┬────────────┘
-     │                   │
-     ├<──────────────────┘
-     │
-     ▼
-┌─────────────────┐
-│ NextAuth.js     │
-│ - Verify token  │
-│ - Find/create   │
-│   user in DB    │
-│ - Issue session │
-└────┬────────────┘
-     │
-     ▼
-┌─────────────────┐
-│  Set session    │
-│  cookie         │
-└────┬────────────┘
-     │
-     ▼
-┌─────────────────┐
-│ Redirect to     │
-│ /dashboard      │
-└─────────────────┘
+
+```mermaid
+flowchart TD
+    USER["User clicks Login"] --> CHOICE{Auth Method}
+
+    CHOICE -->|Google OAuth| GOOGLE["Redirect to Google\nUser authorizes\nCallback URL"]
+    CHOICE -->|Email/Password| CREDS["POST /api/auth/signup\nHash with bcrypt\nInsert to users table"]
+
+    GOOGLE --> VERIFY["NextAuth.js verifies / matches credentials"]
+    CREDS --> VERIFY
+
+    VERIFY --> SESSION["Find/create user in DB\nIssue JWT session\nSet HTTP-only cookie"]
+
+    SESSION --> DASH["Redirect to /dashboard"]
 ```
 
-**Configuration** (`src/lib/auth/config.ts`):
-```typescript
-export const authOptions = {
-  providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-    Credentials({
-      // Custom email/password logic
-    }),
-  ],
-  callbacks: {
-    async session({ session, token }) {
-      // Add user ID to session
-      session.user.id = token.sub;
-      return session;
-    },
-  },
-};
+**Protected Routes**: All `/dashboard/*` paths require authentication. The `authorized` callback in NextAuth config redirects unauthenticated users to `/login`.
+
+---
+
+## AI Chat Architecture
+
+### Multi-Model Support
+
+The AI chat feature uses `@ai-sdk/gateway` to route requests to multiple AI providers:
+
+```mermaid
+flowchart TD
+    MSG["User sends message"] --> POST["POST /api/chat\n(auth required)"]
+    POST --> RATE{"Rate limit check\nUpstash Redis\n20 req/hour/user"}
+    RATE -->|Allowed| MODEL["Select model via @ai-sdk/gateway"]
+    RATE -->|Exceeded| ERR["429 Too Many Requests"]
+
+    MODEL --> GPT["openai/gpt-5.2\n(default)"]
+    MODEL --> CLAUDE["anthropic/claude-haiku-4.5"]
+    MODEL --> GEMINI["google/gemini-3-flash"]
+    MODEL --> SONNET["anthropic/claude-3.7-sonnet-thinking\n(with reasoning)"]
+
+    GPT --> STREAM["Stream response\n(Vercel AI SDK)"]
+    CLAUDE --> STREAM
+    GEMINI --> STREAM
+    SONNET --> STREAM
+
+    STREAM --> RENDER["Client renders with\nuseChat hook + reasoning display"]
+    RENDER --> STATS["ChatStats component\ntoken usage + rate limit status"]
 ```
+
+**Key Components**:
+- `src/lib/ai/providers.ts` - Model configuration and middleware (reasoning extraction)
+- `src/lib/ai/ratelimit.ts` - Upstash sliding window rate limiter
+- `src/app/api/chat/route.ts` - Streaming chat endpoint
+- `src/app/api/chat/usage/route.ts` - Rate limit status endpoint
+- `src/components/ai-elements/chat-stats.tsx` - Token usage and rate limit display
 
 ---
 
@@ -607,35 +425,41 @@ export const authOptions = {
 **1. Data Ingestion** (Monthly):
 ```
 Zillow publishes new CSV → Dagster schedule triggers → Scraper finds URLs
-→ Downloader fetches CSVs → Transformer parses to Parquet
-→ Saves to data/processed/
+→ Downloader fetches CSVs to data/raw/ → Transformer parses to Parquet (data/staging/)
 ```
 
 **2. Data Transformation** (After ingestion):
 ```
-Polars reads zhvi_values.parquet → Window functions calculate YoY/MoM
-→ Writes fct_zhvi_values.parquet → Great Expectations validates
-→ Passes ✓ → Continue to loading
+Polars reads staging Parquet → Window functions calculate YoY/MoM
+→ Writes mart Parquet → Great Expectations validates → Passes → Continue
 ```
 
 **3. Database Loading**:
 ```
-Polars reads fct_*.parquet → ADBC bulk insert to PostgreSQL
-→ app.zhvi_values, app.regions, etc.
+Polars reads mart Parquet → Popular regions filter applied
+→ ADBC bulk insert to PostgreSQL → app.regions, app.zhvi_values, app.market_summary
 ```
 
 **4. Web Application Query** (Real-time):
 ```
-User visits /dashboard → Server Component fetches market_summary
+User visits /dashboard → TanStack Query fetches /api/market/stats
 → Drizzle ORM queries PostgreSQL → Returns typed data
-→ React renders <MarketOverviewCard />
+→ React renders live platform stats + market overview
 ```
 
 **5. Interactive User Action**:
 ```
-User types "Austin" in search → Client Component debounces input
+User types "Austin" in search → Client Component debounces input (300ms)
 → Fetch /api/regions/search?q=Austin → Drizzle queries app.regions
 → Returns matches → React updates autocomplete dropdown
+```
+
+**6. AI Chat Interaction**:
+```
+User sends message → POST /api/chat with model selection
+→ Rate limit check (Upstash) → Stream from AI Gateway
+→ Client renders streaming response with useChat hook
+→ ChatStats updates token count and remaining requests
 ```
 
 ---
@@ -655,20 +479,30 @@ User types "Austin" in search → Client Component debounces input
 make dev  # Starts all services
 ```
 
-### Production (Future)
+### Docker Compose (Full Stack)
 
-**Planned Stack**:
-- **Database**: Managed PostgreSQL (AWS RDS, Neon, Supabase)
+**Services**:
+| Service | Image | Port | Purpose |
+|---------|-------|------|---------|
+| postgres | postgres:16-alpine | 5432 | PostgreSQL database |
+| pgweb | sosedoff/pgweb | 8081 | Web database UI |
+| webapp | custom (Next.js) | 3000 | Next.js frontend |
+| dagster-webserver | custom | 3001 | Dagster UI |
+| dagster-daemon | custom | - | Scheduler/sensor daemon |
+| webapp-init | custom (init) | - | One-shot schema push + seed |
+
+### Production
+
+**Current Stack**:
+- **Database**: Neon (serverless PostgreSQL)
 - **Webapp**: Vercel (Next.js native support)
-- **Data Platform**: Modal, AWS ECS, or Cloud Run (containerized Dagster)
-- **Storage**: S3 for Parquet files
-- **Secrets**: Environment variables via platform
+- **AI Services**: AI SDK Gateway (routes to OpenAI, Anthropic, Google)
+- **Rate Limiting**: Upstash Redis (serverless)
 
-**Considerations**:
-- Separate staging and production environments
-- CI/CD with GitHub Actions
-- Database migrations with Drizzle Kit
-- Monitoring with Sentry + Dagster Cloud (optional)
+**Sync to Production**:
+```bash
+make sync-to-neon  # Syncs app.* tables from local to Neon
+```
 
 ---
 
@@ -682,6 +516,7 @@ make dev  # Starts all services
 | **API Response** | Market summary query | <50ms |
 | **Page Load** | Dashboard SSR | <300ms (cold) |
 | **Chart Render** | 100 data points | <50ms |
+| **AI Chat** | First token latency | ~500ms-2s (model dependent) |
 
 ---
 
@@ -697,8 +532,6 @@ make dev  # Starts all services
 | **Complexity** | Requires warehouse | Runs anywhere Python runs |
 | **Testing** | dbt test | pytest with actual data |
 
-**Decision**: Polars for this project size. Consider dbt for multi-user data teams.
-
 ### Why Dagster Instead of Airflow?
 
 | Factor | Airflow | Dagster |
@@ -709,8 +542,6 @@ make dev  # Starts all services
 | **Lineage** | Manual | Automatic |
 | **Local Dev** | Heavy (Docker) | Lightweight (pip install) |
 
-**Decision**: Dagster for modern asset-based thinking and better DX.
-
 ### Why Next.js Instead of Separate Frontend/Backend?
 
 | Factor | Separate | Next.js |
@@ -718,38 +549,8 @@ make dev  # Starts all services
 | **Complexity** | 2 repos, 2 deploys | Single repo |
 | **Type Safety** | Manual API contract | Shared types |
 | **Performance** | Client-side rendering | SSR + RSC |
-| **SEO** | Requires SSR setup | Built-in |
 | **API Routes** | Separate Express/FastAPI | Co-located with pages |
-
-**Decision**: Next.js for monolithic simplicity and excellent DX.
-
----
-
-## Scalability Considerations
-
-### Current Limitations (Local Development)
-
-| Resource | Limit | Workaround |
-|----------|-------|------------|
-| **Geography Levels** | State/Metro/County/City only | Excluding Zip/Neighborhood saves 90% memory |
-| **History** | All available years | Could limit to last 10 years |
-| **Parquet Files** | ~5GB | Fine for local, S3 for production |
-| **PostgreSQL** | Docker, single instance | Managed service for production |
-
-### Production Scaling Strategy
-
-**Horizontal Scaling**:
-- Stateless Next.js instances behind load balancer
-- Read replicas for database
-- CDN for static assets
-
-**Vertical Scaling**:
-- Larger PostgreSQL instance
-- More CPU/RAM for Dagster workers
-
-**Data Partitioning**:
-- Partition zhvi_values by date (monthly)
-- Separate tables per geography level if needed
+| **AI Streaming** | Custom setup | Built-in with Vercel AI SDK |
 
 ---
 

@@ -10,7 +10,7 @@ HousingIQ uses NextAuth.js v5 (Auth.js) for user authentication, supporting both
 Users can sign in with their Google account for quick, passwordless authentication.
 
 ### 2. Email/Password
-Users can create an account with their email and password, or sign in with existing credentials.
+Users can create an account with their email and password, or sign in with existing credentials. Passwords are hashed with bcrypt (12 rounds).
 
 ## Test User Credentials
 
@@ -266,6 +266,10 @@ flowchart TD
 | `/dashboard/*` | Protected | All dashboard routes |
 | `/api/auth/*` | Public | NextAuth endpoints |
 | `/api/auth/signup` | Public | User registration |
+| `/api/chat` | Protected | AI chat (auth required) |
+| `/api/chat/usage` | Protected | Rate limit status (auth required) |
+| `/api/market/*` | Public | Market data API |
+| `/api/regions/*` | Public | Region search API |
 
 ## Environment Variables
 
@@ -273,8 +277,8 @@ flowchart TD
 # .env.local
 
 # NextAuth.js
-NEXTAUTH_SECRET=your-secret-key-here
-NEXTAUTH_URL=http://localhost:3000
+AUTH_SECRET=your-secret-key-here
+AUTH_URL=http://localhost:3000
 
 # Google OAuth
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
@@ -395,7 +399,7 @@ interface Session {
 |---------|----------------|
 | Password Hashing | bcrypt with 12 rounds |
 | Session Storage | HTTP-only cookies (not accessible via JS) |
-| Token Signing | HMAC-SHA256 with NEXTAUTH_SECRET |
+| Token Signing | HMAC-SHA256 with AUTH_SECRET |
 | CSRF Protection | Built-in NextAuth CSRF tokens |
 | Secure Cookies | `Secure` flag in production |
 | SameSite | `Lax` policy |

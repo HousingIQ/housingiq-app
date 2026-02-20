@@ -1,366 +1,77 @@
 # Data Pipeline Documentation
 
-> **ARCHIVED**: This document describes the legacy Airflow-based pipeline.
-> For the current architecture using **dbt + Dagster + Great Expectations**,
-> see [09-data-platform.md](./09-data-platform.md).
+> **Note**: The data pipeline has been fully migrated from the legacy Airflow-based approach to
+> **Dagster + Polars + Great Expectations**. For the current architecture, see
+> [09-data-platform.md](./09-data-platform.md).
 
----
+## Current Pipeline Overview
 
-## Overview (Legacy)
+The HousingIQ data pipeline uses Dagster for orchestration and Polars for high-performance data transformations. All pipeline code lives in the `data-platform/` directory.
 
-The data pipeline uses Apache Airflow to orchestrate ETL (Extract, Transform, Load) processes that move Zillow housing data from parquet files into PostgreSQL.
+### Pipeline Stages
 
-## Pipeline Architecture
+```
+1. INGESTION (Dagster assets/zillow.py)
+   Zillow Research → Scraper discovers URLs → Downloader fetches CSVs → Transformer parses to Parquet
 
-```mermaid
-flowchart LR
-    subgraph Source["Data Source"]
-        ZR[Zillow Research]
-        CSV[CSV Files]
-        PQ[Parquet Files]
-    end
+2. TRANSFORMATION (Dagster assets/transforms.py)
+   Parquet files → Polars DataFrames → YoY/MoM calculations → Market summary aggregation
 
-    subgraph Pipeline["Airflow Pipeline"]
-        DAG[load_zillow_data DAG]
-        ETL[ETL Scripts]
-    end
+3. VALIDATION (Great Expectations)
+   Schema checks → Value range validation → Completeness tests
 
-    subgraph Target["Target"]
-        PG[(PostgreSQL)]
-        WEB[Web Application]
-    end
-
-    ZR --> CSV
-    CSV --> |"ETL (zillow_data_sc)"| PQ
-    PQ --> DAG
-    DAG --> ETL
-    ETL --> PG
-    PG --> WEB
+4. DATABASE LOADING (Dagster assets/database.py)
+   Mart Parquet → Popular regions filter → ADBC bulk insert → PostgreSQL app.* tables
 ```
 
-## Data Flow
+### Data Layers
 
-```mermaid
-sequenceDiagram
-    participant Z as Zillow Research
-    participant S as Scraper
-    participant D as Downloader
-    participant E as ETL
-    participant A as Airflow
-    participant P as PostgreSQL
+The pipeline uses a three-layer architecture:
 
-    Note over Z,S: One-time setup (zillow_data_sc)
-    S->>S: Generate manifest.json
-    D->>Z: Download CSVs
-    Z->>D: Return data
-    E->>D: Read CSVs
-    E->>E: Transform to parquet
+| Layer | Path | Description |
+|-------|------|-------------|
+| **Raw** | `data/raw/` | Downloaded Zillow CSV files (organized by category) |
+| **Staging** | `data/staging/` | Normalized Parquet files (regions, values in long format) |
+| **Mart** | `data/mart/` | Final transformed Parquet (with YoY/MoM, market summary) |
 
-    Note over A,P: Recurring pipeline
-    A->>A: Trigger DAG
-    A->>E: Run load_regions
-    E->>P: INSERT regions
-    A->>E: Run load_zhvi_state
-    E->>P: INSERT zhvi_values
-```
-
-## Airflow Setup
-
-### Docker Compose Configuration
-
-**File:** `data-pipeline/docker-compose.yml`
-
-```yaml
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-
-  airflow-webserver:
-    image: apache/airflow:2.8.1-python3.11
-    command: webserver
-    ports:
-      - "8080:8080"
-    environment:
-      WEBAPP_DATABASE_URL: postgresql://housingiq:housingiq_dev@host.docker.internal:5432/housingiq
-
-  airflow-scheduler:
-    image: apache/airflow:2.8.1-python3.11
-    command: scheduler
-```
-
-### Service Architecture
-
-```mermaid
-graph TB
-    subgraph Docker["Docker Compose"]
-        subgraph Airflow["Airflow Services"]
-            WS[Webserver<br/>:8080]
-            SC[Scheduler]
-            INIT[Init Container]
-        end
-
-        APG[(Airflow Postgres)]
-
-        subgraph Volumes["Volumes"]
-            DAGS[/dags]
-            LOGS[/logs]
-            SCRIPTS[/scripts]
-            DATA[/zillow_data]
-        end
-    end
-
-    subgraph External["External"]
-        WEBPG[(Webapp Postgres<br/>:5432)]
-    end
-
-    WS --> APG
-    SC --> APG
-    SC --> DAGS
-    SC --> SCRIPTS
-    SCRIPTS --> DATA
-    SCRIPTS --> WEBPG
-```
-
-## DAG Definition
-
-**File:** `data-pipeline/dags/load_zillow_data.py`
-
-```python
-from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.operators.bash import BashOperator
-
-dag = DAG(
-    'load_zillow_data',
-    schedule_interval=None,  # Manual trigger
-    start_date=datetime(2024, 1, 1),
-    catchup=False,
-    tags=['housingiq', 'etl'],
-)
-
-# Task 1: Install dependencies
-install_deps = BashOperator(
-    task_id='install_dependencies',
-    bash_command='pip install polars psycopg2-binary',
-)
-
-# Task 2: Load regions
-load_regions = PythonOperator(
-    task_id='load_regions',
-    python_callable=load_regions_task,
-)
-
-# Task 3: Load ZHVI state data
-load_zhvi_state = PythonOperator(
-    task_id='load_zhvi_state',
-    python_callable=load_zhvi_state_task,
-)
-
-# Dependencies
-install_deps >> load_regions >> load_zhvi_state
-```
-
-### DAG Visualization
-
-```mermaid
-graph LR
-    A[install_dependencies] --> B[load_regions]
-    B --> C[load_zhvi_state]
-
-    style A fill:#f9f,stroke:#333
-    style B fill:#bbf,stroke:#333
-    style C fill:#bbf,stroke:#333
-```
-
-## ETL Scripts
-
-**File:** `data-pipeline/scripts/load_data.py`
-
-### load_regions()
-
-Loads geographic region metadata from `regions.parquet`:
-
-```python
-def load_regions(data_path: str, batch_size: int = 1000):
-    parquet_path = os.path.join(data_path, 'regions.parquet')
-    df = pl.read_parquet(parquet_path)
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Clear existing data
-    cursor.execute("TRUNCATE TABLE regions CASCADE")
-
-    # Batch insert
-    for i in range(0, len(records), batch_size):
-        batch = records[i:i + batch_size]
-        execute_values(cursor, insert_sql, values)
-
-    conn.commit()
-```
-
-### load_zhvi_state()
-
-Loads state-level ZHVI data from `by_geography/zhvi_state.parquet`:
-
-```python
-def load_zhvi_state(data_path: str, batch_size: int = 5000):
-    parquet_path = os.path.join(data_path, 'by_geography', 'zhvi_state.parquet')
-    df = pl.read_parquet(parquet_path)
-
-    # Clear existing state-level data
-    cursor.execute("DELETE FROM zhvi_values WHERE geography_level = 'State'")
-
-    # Batch insert
-    for i in range(0, len(records), batch_size):
-        execute_values(cursor, insert_sql, values)
-```
-
-## Data Transformation
-
-```mermaid
-flowchart TD
-    subgraph Input["Input: Parquet Files"]
-        REG[regions.parquet<br/>75K rows]
-        ZHVI[zhvi_state.parquet<br/>173K rows]
-    end
-
-    subgraph Transform["Transformation"]
-        T1[Read with Polars]
-        T2[Select columns]
-        T3[Convert to dicts]
-        T4[Batch processing]
-    end
-
-    subgraph Output["Output: PostgreSQL"]
-        R[(regions table)]
-        Z[(zhvi_values table)]
-    end
-
-    REG --> T1 --> T2 --> T3 --> T4 --> R
-    ZHVI --> T1
-    T4 --> Z
-```
-
-## Running the Pipeline
-
-### Start Airflow
+### Running the Pipeline
 
 ```bash
-cd data-pipeline
+# Start Dagster UI
+make dagster  # Opens http://localhost:3001
 
-# Set Airflow UID (Linux)
-echo "AIRFLOW_UID=$(id -u)" >> .env
+# Materialize all assets
+make materialize
 
-# Start services
-docker compose up -d
-
-# Wait for initialization (~30 seconds)
-docker compose logs -f airflow-init
+# Or from data-platform/
+cd data-platform
+dagster asset materialize --select "*" -m housingiq_dagster.definitions
 ```
 
-### Access Airflow UI
+### Key Technologies
 
-1. Open http://localhost:8080
-2. Login: `admin` / `admin`
-3. Find `load_zillow_data` DAG
-4. Toggle DAG to "Active"
-5. Click "Trigger DAG" button
+| Component | Purpose |
+|-----------|---------|
+| **Dagster** | Asset-based orchestration with automatic lineage |
+| **Polars** | High-performance DataFrame operations (10-100x faster than Pandas) |
+| **Great Expectations** | Data quality validation |
+| **ADBC** | Fast bulk insert to PostgreSQL via Apache Arrow |
 
-### Monitor Execution
+### Popular Regions Filter
 
-```mermaid
-stateDiagram-v2
-    [*] --> Queued
-    Queued --> Running
-    Running --> Success
-    Running --> Failed
-    Failed --> Queued: Retry
-    Success --> [*]
-```
+To keep the database manageable for Neon free tier (~167 MB), the pipeline applies a filter:
+- All 51 States
+- Top 100 Metros (by size_rank)
+- Top 100 Counties (by size_rank)
+- Top 200 Cities (by size_rank)
 
-### View Logs
+This yields ~450 regions with full historical data (1996-present).
+
+### Production Sync
 
 ```bash
-# All logs
-docker compose logs -f
-
-# Specific service
-docker compose logs -f airflow-scheduler
+# Sync app.* tables from local PostgreSQL to Neon (production)
+make sync-to-neon
 ```
 
-## Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| WEBAPP_DATABASE_URL | Target PostgreSQL | postgresql://housingiq:pass@host:5432/housingiq |
-| ZILLOW_DATA_PATH | Path to parquet files | /opt/airflow/zillow_data |
-| AIRFLOW_UID | Linux user ID | 50000 |
-
-## File Structure
-
-```
-data-pipeline/
-├── docker-compose.yml      # Airflow services
-├── .env                    # Environment variables
-├── requirements.txt        # Python dependencies
-├── dags/
-│   └── load_zillow_data.py # DAG definition
-├── scripts/
-│   └── load_data.py        # ETL functions
-├── logs/                   # Airflow logs
-└── plugins/                # Custom plugins
-```
-
-## Scaling Considerations
-
-### Current Setup (LocalExecutor)
-
-- Single machine execution
-- Sequential task processing
-- Suitable for development
-
-### Production Setup (CeleryExecutor)
-
-```mermaid
-graph TB
-    subgraph Airflow["Airflow Cluster"]
-        WS[Webserver]
-        SC[Scheduler]
-        W1[Worker 1]
-        W2[Worker 2]
-        W3[Worker 3]
-    end
-
-    subgraph Backend["Backend"]
-        PG[(PostgreSQL)]
-        RD[(Redis)]
-    end
-
-    SC --> RD
-    RD --> W1
-    RD --> W2
-    RD --> W3
-    W1 --> PG
-    W2 --> PG
-    W3 --> PG
-```
-
-For full dataset (122M+ rows):
-- Use CeleryExecutor with multiple workers
-- Partition by geography level
-- Use connection pooling
-- Consider batch size tuning
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| DAG not visible | Check file syntax, restart scheduler |
-| Connection refused | Ensure webapp Postgres is running on 5432 |
-| Out of memory | Reduce batch_size parameter |
-| Slow loading | Increase batch_size, add more workers |
+For full details, see [09-data-platform.md](./09-data-platform.md).

@@ -89,13 +89,18 @@ Edit `webapp/.env.local`:
 # Database (default works with Docker Compose)
 DATABASE_URL=postgresql://housingiq:housingiq@localhost:5432/housingiq
 
-# NextAuth.js (generate a random string for NEXTAUTH_SECRET)
-NEXTAUTH_SECRET=your-super-secret-key-at-least-32-characters-long
-NEXTAUTH_URL=http://localhost:3000
+# NextAuth.js (generate a random string for AUTH_SECRET)
+AUTH_SECRET=your-super-secret-key-at-least-32-characters-long
+AUTH_URL=http://localhost:3000
 
 # Google OAuth (optional - email/password works without this)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# AI Chat (optional - required for /dashboard/chat feature)
+AI_GATEWAY_API_KEY=your-ai-gateway-api-key
+UPSTASH_REDIS_REST_URL=your-upstash-redis-url
+UPSTASH_REDIS_REST_TOKEN=your-upstash-redis-token
 ```
 
 **Generate a secure secret:**
@@ -373,10 +378,10 @@ After running the data pipeline, you'll have:
 | Table | Description |
 |-------|-------------|
 | `public.users` | User accounts (auth) |
-| `app.regions` | Geographic regions (states, metros, etc.) |
-| `app.zhvi_values` | Home value time series |
+| `app.regions` | Geographic regions (~450 popular regions) |
+| `app.zhvi_values` | Home value time series (~1.5M rows) |
 | `app.zori_values` | Rent value time series |
-| `app.market_summary` | Pre-aggregated dashboard metrics |
+| `app.market_summary` | Pre-aggregated dashboard metrics (~450 rows) |
 
 ### Reset Database
 
@@ -490,7 +495,7 @@ Verify:
 1. Redirect URI matches exactly: `http://localhost:3000/api/auth/callback/google`
 2. Client ID and Secret are correct (no extra spaces)
 3. OAuth consent screen is published (not in testing mode for external users)
-4. NEXTAUTH_URL is `http://localhost:3000` (not `https`)
+4. AUTH_URL is `http://localhost:3000` (not `https`)
 
 ### Dagster Assets Failing
 
@@ -564,12 +569,17 @@ cd data-platform && make test
 DATABASE_URL=postgresql://housingiq:housingiq@localhost:5432/housingiq
 
 # NextAuth.js Configuration
-NEXTAUTH_SECRET=generate-a-random-32-character-string
-NEXTAUTH_URL=http://localhost:3000
+AUTH_SECRET=generate-a-random-32-character-string
+AUTH_URL=http://localhost:3000
 
 # Google OAuth (optional)
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# AI Chat (optional - for /dashboard/chat)
+AI_GATEWAY_API_KEY=your-ai-gateway-api-key
+UPSTASH_REDIS_REST_URL=your-upstash-redis-url
+UPSTASH_REDIS_REST_TOKEN=your-upstash-redis-token
 ```
 
 ### `data-platform/.env` (Optional)
@@ -587,9 +597,27 @@ After completing setup:
 
 1. **Load Data**: Run the Dagster pipeline to populate the database with Zillow data
 2. **Explore Dashboard**: Visit http://localhost:3000/dashboard to see market analytics
-3. **Browse Data**: Use pgweb (http://localhost:8081) or Drizzle Studio to explore tables
-4. **Customize**: Edit components in `webapp/src/components/`
-5. **Add Features**: Extend the dashboard in `webapp/src/app/dashboard/`
+3. **Try AI Chat**: Visit http://localhost:3000/dashboard/chat (requires AI_GATEWAY_API_KEY + Upstash)
+4. **Browse Data**: Use pgweb (http://localhost:8081) or Drizzle Studio to explore tables
+5. **Customize**: Edit components in `webapp/src/components/`
+6. **Add Features**: Extend the dashboard in `webapp/src/app/dashboard/`
+
+## Docker Full-Stack Deployment
+
+For running everything in Docker:
+
+```bash
+# Build all images
+make docker-build
+
+# Start all services
+make docker-up
+
+# Initialize schema and seed data
+make docker-init
+```
+
+This starts PostgreSQL, pgweb, webapp (port 3000), Dagster webserver (port 3001), and Dagster daemon.
 
 ## Related Documentation
 
