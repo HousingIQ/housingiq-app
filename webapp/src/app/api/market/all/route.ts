@@ -16,10 +16,7 @@ export async function GET(request: NextRequest) {
         stateName: marketSummary.stateName,
         currentHomeValue: marketSummary.currentHomeValue,
         homeValueYoyPct: marketSummary.homeValueYoyPct,
-        currentRentValue: marketSummary.currentRentValue,
-        rentYoyPct: marketSummary.rentYoyPct,
-        priceToRentRatio: marketSummary.priceToRentRatio,
-        grossRentYieldPct: marketSummary.grossRentYieldPct,
+        homeValueMomPct: marketSummary.homeValueMomPct,
         marketClassification: marketSummary.marketClassification,
       })
       .from(marketSummary)
