@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { auth, signOut } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map, Sparkles } from 'lucide-react';
+import { Home, TrendingUp, BarChart3, LogOut, Trophy, Calculator, Map, Sparkles, BookOpen } from 'lucide-react';
 
 export default async function DashboardLayout({
   children,
@@ -84,6 +84,15 @@ export default async function DashboardLayout({
                 >
                   <Map className="h-5 w-5" />
                   Map
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/docs"
+                  className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <BookOpen className="h-5 w-5" />
+                  Docs
                 </Link>
               </li>
             </ul>

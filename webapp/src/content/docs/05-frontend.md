@@ -1,4 +1,4 @@
-# Frontend Documentation
+# Frontend
 
 ## Overview
 

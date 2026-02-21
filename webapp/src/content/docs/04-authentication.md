@@ -1,4 +1,4 @@
-# Authentication Documentation
+# Authentication
 
 ## Overview
 

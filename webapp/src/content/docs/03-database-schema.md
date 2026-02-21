@@ -1,4 +1,4 @@
-# Database Schema Documentation
+# Database Schema
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# Data Pipeline Documentation
+# Data Pipeline
 
 > **Note**: The data pipeline has been fully migrated from the legacy Airflow-based approach to
 > **Dagster + Polars + Great Expectations**. For the current architecture, see
