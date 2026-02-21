@@ -1,0 +1,61 @@
+// Simplified US state outlines for SVG rendering
+// Viewbox: 0 0 960 600
+export type StateData = {
+  id: string;
+  name: string;
+  path: string;
+  temperature: "hot" | "warm" | "cold";
+};
+
+export const US_STATES: StateData[] = [
+  { id: "AL", name: "Alabama", temperature: "warm", path: "M628,430 L628,470 L618,490 L625,495 L615,500 L610,470 L612,430 Z" },
+  { id: "AK", name: "Alaska", temperature: "cold", path: "M120,500 L160,490 L180,500 L170,520 L130,520 Z" },
+  { id: "AZ", name: "Arizona", temperature: "hot", path: "M205,400 L260,400 L270,460 L220,470 L200,440 Z" },
+  { id: "AR", name: "Arkansas", temperature: "warm", path: "M555,420 L600,420 L605,460 L550,460 Z" },
+  { id: "CA", name: "California", temperature: "hot", path: "M120,280 L145,280 L170,340 L170,420 L140,440 L110,400 L105,330 Z" },
+  { id: "CO", name: "Colorado", temperature: "warm", path: "M280,310 L370,310 L370,370 L280,370 Z" },
+  { id: "CT", name: "Connecticut", temperature: "cold", path: "M838,210 L858,205 L862,220 L842,225 Z" },
+  { id: "DE", name: "Delaware", temperature: "warm", path: "M810,290 L820,285 L822,305 L812,305 Z" },
+  { id: "FL", name: "Florida", temperature: "hot", path: "M650,480 L700,470 L730,490 L740,530 L710,560 L680,540 L640,510 Z" },
+  { id: "GA", name: "Georgia", temperature: "hot", path: "M660,400 L700,400 L710,460 L680,475 L650,460 L650,420 Z" },
+  { id: "HI", name: "Hawaii", temperature: "hot", path: "M260,520 L290,515 L295,530 L265,535 Z" },
+  { id: "ID", name: "Idaho", temperature: "cold", path: "M195,150 L235,140 L250,200 L240,260 L200,250 Z" },
+  { id: "IL", name: "Illinois", temperature: "cold", path: "M580,260 L610,250 L620,310 L610,370 L580,380 L570,320 Z" },
+  { id: "IN", name: "Indiana", temperature: "cold", path: "M620,270 L650,265 L655,340 L625,350 L620,310 Z" },
+  { id: "IA", name: "Iowa", temperature: "cold", path: "M510,240 L575,235 L580,280 L520,290 L505,270 Z" },
+  { id: "KS", name: "Kansas", temperature: "warm", path: "M400,340 L500,340 L500,390 L400,390 Z" },
+  { id: "KY", name: "Kentucky", temperature: "warm", path: "M615,350 L700,340 L710,365 L640,380 L610,375 Z" },
+  { id: "LA", name: "Louisiana", temperature: "hot", path: "M545,470 L590,465 L600,500 L580,520 L550,510 L540,490 Z" },
+  { id: "ME", name: "Maine", temperature: "cold", path: "M870,100 L895,90 L900,140 L880,160 L865,140 Z" },
+  { id: "MD", name: "Maryland", temperature: "warm", path: "M770,290 L810,280 L815,300 L790,310 L770,305 Z" },
+  { id: "MA", name: "Massachusetts", temperature: "cold", path: "M840,195 L875,188 L880,200 L845,208 Z" },
+  { id: "MI", name: "Michigan", temperature: "cold", path: "M600,170 L640,155 L660,190 L650,235 L620,245 L610,210 Z" },
+  { id: "MN", name: "Minnesota", temperature: "cold", path: "M480,120 L540,115 L550,190 L530,220 L490,220 L475,170 Z" },
+  { id: "MS", name: "Mississippi", temperature: "warm", path: "M590,420 L620,415 L625,490 L600,500 L585,470 Z" },
+  { id: "MO", name: "Missouri", temperature: "warm", path: "M510,310 L575,305 L580,380 L560,400 L520,400 L505,360 Z" },
+  { id: "MT", name: "Montana", temperature: "cold", path: "M240,120 L370,110 L375,180 L250,190 Z" },
+  { id: "NE", name: "Nebraska", temperature: "cold", path: "M370,270 L490,265 L500,310 L395,315 L370,300 Z" },
+  { id: "NV", name: "Nevada", temperature: "hot", path: "M155,260 L200,250 L220,340 L195,390 L155,350 Z" },
+  { id: "NH", name: "New Hampshire", temperature: "cold", path: "M860,135 L872,130 L878,175 L862,180 Z" },
+  { id: "NJ", name: "New Jersey", temperature: "warm", path: "M822,240 L835,235 L838,280 L825,290 Z" },
+  { id: "NM", name: "New Mexico", temperature: "warm", path: "M260,380 L350,375 L355,460 L265,465 Z" },
+  { id: "NY", name: "New York", temperature: "cold", path: "M770,170 L840,155 L845,210 L820,230 L780,230 L770,200 Z" },
+  { id: "NC", name: "North Carolina", temperature: "warm", path: "M660,365 L770,350 L790,370 L720,390 L660,395 Z" },
+  { id: "ND", name: "North Dakota", temperature: "cold", path: "M380,120 L470,115 L475,180 L385,185 Z" },
+  { id: "OH", name: "Ohio", temperature: "cold", path: "M655,255 L710,245 L715,310 L670,325 L655,300 Z" },
+  { id: "OK", name: "Oklahoma", temperature: "warm", path: "M370,390 L500,385 L505,430 L440,440 L370,440 Z" },
+  { id: "OR", name: "Oregon", temperature: "cold", path: "M105,150 L190,140 L195,210 L115,220 Z" },
+  { id: "PA", name: "Pennsylvania", temperature: "cold", path: "M720,230 L810,220 L815,265 L730,275 Z" },
+  { id: "RI", name: "Rhode Island", temperature: "cold", path: "M858,208 L868,205 L870,218 L860,220 Z" },
+  { id: "SC", name: "South Carolina", temperature: "hot", path: "M680,390 L730,385 L740,420 L700,430 L675,415 Z" },
+  { id: "SD", name: "South Dakota", temperature: "cold", path: "M380,190 L475,185 L480,250 L390,255 Z" },
+  { id: "TN", name: "Tennessee", temperature: "warm", path: "M600,370 L710,360 L715,390 L605,400 Z" },
+  { id: "TX", name: "Texas", temperature: "hot", path: "M350,440 L440,435 L500,440 L530,470 L540,530 L500,560 L440,550 L380,520 L340,490 Z" },
+  { id: "UT", name: "Utah", temperature: "warm", path: "M220,260 L280,255 L285,340 L225,345 Z" },
+  { id: "VT", name: "Vermont", temperature: "cold", path: "M845,140 L858,135 L862,175 L848,180 Z" },
+  { id: "VA", name: "Virginia", temperature: "warm", path: "M690,320 L780,310 L795,340 L730,360 L690,355 Z" },
+  { id: "WA", name: "Washington", temperature: "cold", path: "M115,80 L200,75 L205,145 L120,150 Z" },
+  { id: "WV", name: "West Virginia", temperature: "cold", path: "M700,290 L730,280 L740,330 L720,350 L700,330 Z" },
+  { id: "WI", name: "Wisconsin", temperature: "cold", path: "M540,150 L590,140 L600,200 L580,240 L540,245 L530,195 Z" },
+  { id: "WY", name: "Wyoming", temperature: "cold", path: "M255,195 L365,185 L370,260 L260,265 Z" },
+];
