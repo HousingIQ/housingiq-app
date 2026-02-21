@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, MapPin, BarChart3, ArrowRight, Home } from 'lucide-react';
+import { TrendingUp, MapPin, BarChart3, ArrowRight, Home, MessageSquare } from 'lucide-react';
 
 export default async function LandingPage() {
   const session = await auth();
@@ -84,7 +84,7 @@ export default async function LandingPage() {
         <h2 className="text-3xl font-bold text-center mb-12">
           What You Get When You Sign In
         </h2>
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           <Card>
             <CardHeader>
               <TrendingUp className="h-10 w-10 text-blue-600 mb-2" />
@@ -129,6 +129,22 @@ export default async function LandingPage() {
               <p className="text-gray-600">
                 Compare home values across multiple regions. Identify market
                 trends and investment opportunities.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <MessageSquare className="h-10 w-10 text-pink-600 mb-2" />
+              <CardTitle>AI Chat</CardTitle>
+              <CardDescription>
+                AI-powered market intelligence
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600">
+                Ask questions about any market and get instant insights
+                with interactive charts and data analysis.
               </p>
             </CardContent>
           </Card>
