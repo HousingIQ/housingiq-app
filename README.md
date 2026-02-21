@@ -35,22 +35,22 @@ A full-stack application combining a modern data engineering pipeline with an in
 
 ```mermaid
 graph TD
-    subgraph Data Platform — Python
-        A[Zillow Research<br/>CSV Downloads] --> B[Dagster<br/>Orchestration]
-        B --> C[Polars<br/>Transforms]
-        C --> D[Great Expectations<br/>Validation]
+    subgraph dp["Data Platform - Python"]
+        A["Zillow Research (CSV Downloads)"] --> B["Dagster (Orchestration)"]
+        B --> C["Polars (Transforms)"]
+        C --> D["Great Expectations (Validation)"]
     end
 
-    subgraph Database
-        D --> E[(PostgreSQL 16<br/>regions · zhvi_values · zori_values<br/>market_summary · inventory · affordability)]
+    subgraph db["Database"]
+        D --> E[("PostgreSQL 16<br/>regions, zhvi_values, zori_values<br/>market_summary, inventory, affordability")]
     end
 
-    subgraph Webapp — Next.js 16 / React 19
-        E --> F[Server Components<br/>Drizzle ORM]
-        E --> G[API Routes<br/>AI SDK · Chat]
-        F --> H[Client Components<br/>Recharts · D3 · Maps]
+    subgraph wa["Webapp - Next.js 16 / React 19"]
+        E --> F["Server Components + Drizzle ORM"]
+        E --> G["API Routes + AI SDK"]
+        F --> H["Client Components<br/>Recharts, D3, Maps"]
         G --> H
-        I[NextAuth.js v5<br/>Google OAuth] --> F
+        I["NextAuth.js v5 + Google OAuth"] --> F
     end
 ```
 
@@ -210,13 +210,13 @@ make gx                # Run Great Expectations checkpoint
 
 ```mermaid
 graph LR
-    subgraph Local / CI — Docker Compose
+    subgraph local["Local / CI - Docker Compose"]
         A[Dagster] --> B[Polars] --> C[(PostgreSQL)]
     end
 
-    subgraph Cloud
-        D[(Neon — Managed PG)]
-        E[Vercel — Webapp]
+    subgraph cloud["Cloud"]
+        D[("Neon - Managed PG")]
+        E["Vercel - Webapp"]
         E --> D
     end
 
