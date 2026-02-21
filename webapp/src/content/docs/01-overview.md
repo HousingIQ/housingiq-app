@@ -23,7 +23,7 @@
 - **ROI Calculator**: Calculate potential returns on real estate investments with detailed projections
 - **US Choropleth Map**: Visualize state-level market data on an interactive color-coded map
 - **Region Comparison**: Compare up to 4 markets side-by-side with trend overlays
-- **AI Chat**: Ask questions about housing market trends using multiple AI models (GPT 5.2, Claude, Gemini)
+- **AI Chat with Generative UI**: Ask questions about housing market trends using multiple AI models (GPT 5.2, Claude, Gemini) — responses include AI-generated interactive charts, metrics, and insights via ToolLoopAgent and json-renderer
 - **Market Health Score**: Computed 0-100 score based on appreciation, rent growth, P/R ratio, and rent yield
 
 ### For Data Engineers
@@ -120,7 +120,8 @@ flowchart TD
 | **Charts** | Recharts 3 | React chart library for data visualization |
 | **Maps** | react-simple-maps | US choropleth map visualization |
 | **State Management** | TanStack Query | Server state management with caching |
-| **AI Integration** | Vercel AI SDK + @ai-sdk/gateway | Multi-model AI chat (GPT, Claude, Gemini) |
+| **AI Integration** | Vercel AI SDK + @ai-sdk/gateway | Multi-model AI chat with ToolLoopAgent (GPT, Claude, Gemini) |
+| **Generative UI** | @json-render/core, react, shadcn | AI-generated React component trees via JSONL specs |
 | **Rate Limiting** | Upstash Redis + @upstash/ratelimit | Sliding window rate limiting for AI chat |
 
 ### Infrastructure
@@ -204,7 +205,7 @@ housingiq-app/                    # Monorepo root
 │   │   │   ├── RegionComparePicker.tsx
 │   │   │   └── Providers.tsx
 │   │   └── lib/                 # Utilities, DB, Auth, AI
-│   │       ├── ai/              # AI providers & rate limiting
+│   │       ├── ai/              # ToolLoopAgent, json-render catalog/registry, tools, providers
 │   │       ├── db/              # Drizzle ORM
 │   │       ├── auth/            # NextAuth.js config
 │   │       └── hooks/           # TanStack Query hooks
@@ -298,7 +299,9 @@ make materialize
 - [x] Region comparison (up to 4 regions side-by-side)
 - [x] US choropleth map with state-level data
 - [x] Investment ROI calculator
-- [x] AI chat with multi-model support (GPT, Claude, Gemini)
+- [x] AI chat with ToolLoopAgent and generative UI (json-renderer)
+- [x] Multi-model support for AI chat (GPT 5.2, Claude Haiku 4.5, Gemini 3 Flash, Claude 3.7 Sonnet)
+- [x] Custom component catalog: Metric, LineChart, Callout with state binding
 - [x] Rate limiting for AI chat (Upstash Redis)
 - [x] Docker Compose for full-stack deployment
 - [x] Production sync to Neon (serverless PostgreSQL)
@@ -329,6 +332,7 @@ make materialize
 - **Architecture**: See [02-architecture.md](./02-architecture.md)
 - **Data Platform**: Read [09-data-platform.md](./09-data-platform.md)
 - **API Reference**: See [08-api-reference.md](./08-api-reference.md)
+- **AI Chat & Generative UI**: See [11-ai-chat.md](./11-ai-chat.md)
 
 ## Next Steps
 
