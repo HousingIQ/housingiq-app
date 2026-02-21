@@ -1,293 +1,244 @@
+<div align="center">
+
 # HousingIQ
 
-Housing analytics web application powered by Zillow data, featuring a modern data platform with Dagster and Polars.
+**Real-time housing market analytics platform powered by Zillow data**
 
-## Quick Start (Docker)
+A full-stack application combining a modern data engineering pipeline with an interactive analytics dashboard, covering 450+ U.S. regions with home value trends, rent indices, and AI-powered market insights.
 
-Only Docker is required. Clone the repo and run three commands:
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
+[![Dagster](https://img.shields.io/badge/Dagster-Pipeline-4F43FF?logo=dagster)](https://dagster.io/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-```bash
-# 1. Build all images
-make docker-build
+</div>
 
-# 2. Start all services
-make docker-up
+---
 
-# 3. Initialize database (push schema + seed test user)
-make docker-init
+## Features
+
+**Interactive Dashboard** — Market overview with key statistics across 51 states, 98 metros, 101 counties, and 200 cities. Filterable by home type (Single Family, Condo, Multi Family), price tier, and time range. Includes market health scores, top movers, and rent yield analysis.
+
+**Rankings** — Sortable leaderboard of top markets by home value appreciation, rent growth, rent yield, price-to-rent ratio, and absolute home value. Markets are classified as Hot (>10% YoY), Warm (3–10%), or Cold (<3%).
+
+**Region Comparison** — Compare up to 4 regions side-by-side with interactive trend charts, color-coded stats, and mixed geography levels (state vs. metro vs. city).
+
+**Investment Calculator** — ROI calculator with adjustable parameters for purchase price, down payment, interest rate, loan term, rent, appreciation, and expenses. Projects equity growth and cash flow over time.
+
+**Interactive Map** — Choropleth map of the U.S. with heatmap coloring by home value or YoY change. Hover tooltips and a companion data table.
+
+**AI Chat** — Conversational interface for querying housing market data using natural language. Built with the AI SDK, supports tool calls for fetching live market trends, and displays structured data responses.
+
+## Architecture
+
+```mermaid
+graph TD
+    subgraph Data Platform — Python
+        A[Zillow Research<br/>CSV Downloads] --> B[Dagster<br/>Orchestration]
+        B --> C[Polars<br/>Transforms]
+        C --> D[Great Expectations<br/>Validation]
+    end
+
+    subgraph Database
+        D --> E[(PostgreSQL 16<br/>regions · zhvi_values · zori_values<br/>market_summary · inventory · affordability)]
+    end
+
+    subgraph Webapp — Next.js 16 / React 19
+        E --> F[Server Components<br/>Drizzle ORM]
+        E --> G[API Routes<br/>AI SDK · Chat]
+        F --> H[Client Components<br/>Recharts · D3 · Maps]
+        G --> H
+        I[NextAuth.js v5<br/>Google OAuth] --> F
+    end
 ```
 
-Services available after startup:
+### Data Flow
 
-| Service | URL |
-|---------|-----|
-| Webapp | http://localhost:3000 |
-| Dagster UI | http://localhost:3001 |
-| pgweb (DB viewer) | http://localhost:8081 |
-| PostgreSQL | localhost:5432 |
+```mermaid
+graph LR
+    A[Zillow CSVs] --> B[Python Ingestion]
+    B --> C[Parquet Files]
+    C --> D[Polars Transforms]
+    D --> E[(PostgreSQL)]
+    E --> F[Next.js API]
+    F --> G[React UI]
+```
 
-Login with `test@housingiq.com` / `TestPassword123!`
+Dagster orchestrates the pipeline in three asset groups:
+1. **Ingestion** — Downloads Zillow CSV data and converts to Parquet
+2. **Transforms** — Polars computes YoY/MoM changes, market summaries, heat indices, and affordability metrics
+3. **App Database** — Loads final tables into PostgreSQL for the webapp to query
 
-### Load Housing Data
+## Tech Stack
 
-Open the Dagster UI at http://localhost:3001 and materialize assets in order:
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Next.js 16, React 19, TypeScript 5 | App Router with Server & Client Components |
+| **Styling** | Tailwind CSS 4, shadcn/ui, Motion | Responsive UI with animations |
+| **Visualization** | Recharts, D3, React Simple Maps | Charts, geospatial map, data tables |
+| **AI** | AI SDK, Claude | Conversational market insights |
+| **ORM** | Drizzle ORM | Type-safe database queries |
+| **Auth** | NextAuth.js v5 | Google OAuth + email/password |
+| **Orchestration** | Dagster | Software-defined assets with lineage tracking |
+| **Transforms** | Polars | High-performance DataFrame operations |
+| **Data Quality** | Great Expectations | Validation before loading |
+| **Database** | PostgreSQL 16 | Application and pipeline storage |
+| **Infrastructure** | Docker Compose | Multi-service local and production orchestration |
+| **Deployment** | Vercel + Neon | Webapp hosting + managed PostgreSQL |
 
-1. **ingestion** group - downloads Zillow CSV data
-2. **transforms** group - creates Parquet files with Polars
-3. **app_database** group - loads final tables into PostgreSQL
+## Project Structure
 
-## Quick Start (Local Dev)
+```
+housingiq-app/
+├── webapp/                        # Next.js full-stack web application
+│   ├── src/
+│   │   ├── app/                   # App Router (dashboard, chat, login, docs)
+│   │   ├── components/            # UI components (charts, map, calculator)
+│   │   └── lib/                   # DB schema, auth config, utilities
+│   └── Dockerfile
+│
+├── data-platform/                 # Python data engineering
+│   ├── housingiq_dagster/         # Dagster assets & definitions
+│   ├── ingestion/                 # Zillow data source connectors
+│   ├── great_expectations/        # Data quality validation suites
+│   ├── tests/                     # pytest test suite
+│   └── Dockerfile
+│
+├── video/                         # Remotion promo video (React)
+├── docker-compose.yml             # Full-stack service definitions
+└── Makefile                       # Project orchestration commands
+```
 
-For active development with hot-reload, run the webapp and Dagster locally while using Docker only for PostgreSQL:
+## Getting Started
+
+### Docker (recommended for demo)
+
+Only Docker is required — no local Python or Node.js installation needed.
 
 ```bash
+# Build, start, and initialize everything
+make docker-build && make docker-up && make docker-init
+```
+
+Then open:
+- **Webapp** → http://localhost:3000 (login: `test@housingiq.com` / `TestPassword123!`)
+- **Dagster UI** → http://localhost:3001 (materialize assets to load data)
+- **pgweb** → http://localhost:8081 (browse the database)
+
+### Local Development
+
+For active development with hot-reload:
+
+```bash
+# Prerequisites: Python 3.11+, Node.js 20+
+
 # First-time setup (installs deps, starts DB, pushes schema, seeds user)
 make setup
 
-# Start all services for development
+# Start all services with hot-reload
 make dev
 ```
-
-Prerequisites: Python 3.11+, Node.js 20+, npm.
-
-**Local mode vs Docker mode:**
 
 | | Local Dev (`make dev`) | Docker (`make docker-up`) |
 |---|---|---|
 | PostgreSQL | Docker container | Docker container |
 | Webapp | Local process (hot-reload) | Docker container |
 | Dagster | Local process (hot-reload) | Docker container |
-| Data files | `data-platform/data/` on host | `dagster-data` Docker volume |
-| Best for | Active development | Demo, CI, deployment |
+| Best for | Active development | Demo / deployment |
 
-Do not run both modes at the same time -- they share ports 3000 and 3001.
+### Loading Data
 
-## Project Structure
+Open the Dagster UI at http://localhost:3001 and materialize assets in order:
 
-```
-housingiq-app/
-├── data-platform/                # Data engineering stack
-│   ├── housingiq_dagster/       # Dagster assets & orchestration
-│   ├── ingestion/               # Data source connectors (Zillow)
-│   ├── great_expectations/      # Data quality validation
-│   ├── Dockerfile               # Python/Dagster container image
-│   └── tests/                   # Python tests
-│
-├── webapp/                       # Next.js full-stack web application
-│   ├── src/
-│   │   ├── app/                 # App Router pages & API routes
-│   │   ├── components/          # UI components
-│   │   └── lib/                 # Utilities, DB, Auth
-│   └── Dockerfile               # Multi-stage Next.js container image
-│
-├── init-db/                      # PostgreSQL init scripts (schemas)
-├── docker-compose.yml           # Full-stack service definitions
-├── Makefile                     # Project orchestration commands
-└── CLAUDE.md                    # AI assistant guidance
-```
+1. **ingestion** — downloads Zillow CSV data
+2. **transforms** — computes analytics with Polars
+3. **app_database** — loads tables into PostgreSQL
 
-## Available Commands
+## Commands Reference
 
-### Docker (full stack)
+<details>
+<summary><strong>Docker</strong></summary>
 
 ```bash
-make docker-build     # Build all Docker images
-make docker-up        # Start all services
-make docker-init      # Initialize DB schema + seed test user (first time)
-make docker-down      # Stop all services
-make docker-logs      # Follow logs from all services
-make docker-restart   # Rebuild and restart all services
-make docker-clean     # Stop services and remove all volumes (fresh start)
+make docker-build      # Build all Docker images
+make docker-up         # Start all services
+make docker-init       # Initialize DB schema + seed test user
+make docker-down       # Stop all services
+make docker-logs       # Follow logs from all services
+make docker-restart    # Rebuild and restart
+make docker-clean      # Stop and remove all volumes (fresh start)
 ```
 
-### Local Development
+</details>
+
+<details>
+<summary><strong>Local Development</strong></summary>
 
 ```bash
-make setup            # First-time setup (install deps, push schema, seed)
-make dev              # Start all services (webapp + Dagster + DB)
-make up               # Start PostgreSQL + pgweb only
-make down             # Stop services
-make webapp           # Start Next.js only
-make dagster          # Start Dagster only
-make psql             # Connect to PostgreSQL CLI
-make db-push          # Push Drizzle schema to database
-make db-seed          # Seed test user
-make materialize      # Materialize all Dagster assets
+make setup             # First-time setup
+make dev               # Start all services (webapp + Dagster + DB)
+make up                # Start PostgreSQL + pgweb only
+make down              # Stop services
+make webapp            # Start Next.js only
+make dagster           # Start Dagster only
+make psql              # Connect to PostgreSQL CLI
+make db-push           # Push Drizzle schema to database
+make db-seed           # Seed test user
+make materialize       # Materialize all Dagster assets
 ```
 
-### Data Platform (from data-platform/)
+</details>
+
+<details>
+<summary><strong>Data Platform</strong></summary>
 
 ```bash
-make setup            # Install Python dependencies
-make dagster          # Start Dagster UI
-make test             # Run pytest
-make lint             # Run ruff linter
+# From data-platform/
+make setup             # Install Python dependencies
+make dagster           # Start Dagster UI
+make test              # Run pytest
+make lint              # Run ruff linter
+make typecheck         # Run mypy
+make gx                # Run Great Expectations checkpoint
 ```
 
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│                   docker compose                      │
-│                                                       │
-│  ┌────────────┐   ┌────────────┐   ┌──────────────┐ │
-│  │ PostgreSQL  │   │  webapp    │   │ dagster-     │ │
-│  │ :5432       │◄──│  :3000     │   │ webserver    │ │
-│  │             │   └────────────┘   │ :3001        │ │
-│  │             │◄───────────────────│              │ │
-│  │             │   ┌────────────┐   └──────────────┘ │
-│  │             │◄──│ dagster-   │                     │
-│  │             │   │ daemon     │   ┌──────────────┐ │
-│  └────────────┘   └────────────┘   │ pgweb :8081  │ │
-│                                     └──────────────┘ │
-└──────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-```
-Zillow CSVs → Python ingestion → Parquet files
-                                     ↓
-                              Polars transforms
-                                     ↓
-                              PostgreSQL app.* → Next.js API → React UI
-```
-
-### Databases
-
-| Database | Purpose |
-|----------|---------|
-| `housingiq` | Application data (users, regions, ZHVI/ZORI values, market summary) |
-| `dagster` | Dagster internal storage (run history, event logs, schedules) |
-
-### Key Tables
-
-- `app.regions` - Geographic regions (state, metro, county, city)
-- `app.zhvi_values` - Zillow Home Value Index time series
-- `app.zori_values` - Zillow Observed Rent Index time series
-- `app.market_summary` - Pre-computed dashboard metrics
-- `app.inventory_values` - For-sale inventory over time
-- `app.market_heat_index` - Market temperature index
-- `app.affordability_metrics` - Mortgage payments, income needed
-
-## Environment Variables
-
-Docker Compose injects all required env vars automatically. For local dev or Google OAuth, create a `.env` at the project root:
-
-```env
-# Auth (generate with: openssl rand -base64 32)
-AUTH_SECRET=super-secret-change-me-in-production
-
-# Google OAuth (optional - leave empty for email/password only)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-```
-
-For local dev, also create `webapp/.env.local`:
-
-```env
-DATABASE_URL=postgresql://housingiq:housingiq@localhost:5432/housingiq
-AUTH_SECRET=your-secret-key
-AUTH_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-```
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Data Platform** | |
-| Orchestration | Dagster |
-| Transformations | Polars |
-| Data Quality | Great Expectations |
-| Database | PostgreSQL 16 |
-| **Webapp** | |
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS 4 + shadcn/ui |
-| ORM | Drizzle ORM |
-| Auth | NextAuth.js v5 + Google OAuth |
-| Charts | Recharts |
-| **Infrastructure** | |
-| Containers | Docker Compose |
-| Images | Node 20 Alpine, Python 3.11 Slim |
-
-## Data Source
-
-Data sourced from [Zillow Research](https://www.zillow.com/research/data/):
-
-- **ZHVI** - Zillow Home Value Index (home values)
-- **ZORI** - Zillow Observed Rent Index (rents)
-
-## Dev Account
-
-```
-Email:    test@housingiq.com
-Password: TestPassword123!
-```
+</details>
 
 ## Production Deployment
 
-### Overview
+```mermaid
+graph LR
+    subgraph Local / CI — Docker Compose
+        A[Dagster] --> B[Polars] --> C[(PostgreSQL)]
+    end
 
-Production uses Docker Compose for the data pipeline (Dagster + PostgreSQL) and Neon as the production database for the webapp.
+    subgraph Cloud
+        D[(Neon — Managed PG)]
+        E[Vercel — Webapp]
+        E --> D
+    end
 
+    C -- sync --> D
 ```
-Local/CI Server (Docker Compose)          Cloud (Neon + Vercel)
-┌────────────────────────────────┐        ┌─────────────────────┐
-│  Dagster → Polars → PostgreSQL │──sync──▶│  Neon PostgreSQL    │
-│  (data pipeline)               │        │       ↑              │
-└────────────────────────────────┘        │  Vercel (webapp)    │
-                                          └─────────────────────┘
-```
-
-### Step 1: Run the Data Pipeline
 
 ```bash
-# Start all services
+# Run data pipeline
 make docker-build && make docker-up && make docker-init
 
-# Materialize all assets (downloads Zillow data, transforms, loads to local DB)
-# Use the Dagster UI at http://localhost:3001 or:
-docker exec housingiq-dagster-webserver \
-  dagster asset materialize --select "*" -m housingiq_dagster.definitions
+# Sync to production database
+NEON_DATABASE_URL='postgresql://...' make sync-to-neon
 ```
 
-### Step 2: Sync to Production Database (Neon)
+The webapp deploys to Vercel automatically via GitHub Actions.
 
-```bash
-# Dry run first to see what will be synced
-NEON_DATABASE_URL='postgresql://user:pass@host/db?sslmode=require' make sync-to-neon-dry
+## Data Source
 
-# Sync app schema tables to Neon
-NEON_DATABASE_URL='postgresql://user:pass@host/db?sslmode=require' make sync-to-neon
-```
+All housing data is sourced from [Zillow Research](https://www.zillow.com/research/data/), updated monthly:
 
-### Step 3: Deploy the Webapp
-
-The webapp deploys to Vercel via the [HousingIQ/webapp](https://github.com/HousingIQ/webapp) repo, which is auto-synced from this monorepo via GitHub Actions.
-
-Required Vercel environment variables:
-
-```env
-DATABASE_URL=postgresql://...@neon.tech/housingiq?sslmode=require
-AUTH_SECRET=<generate with: openssl rand -base64 32>
-AUTH_URL=https://your-domain.vercel.app
-GOOGLE_CLIENT_ID=<from Google Cloud Console>
-GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
-```
-
-### Production Environment Variables
-
-| Variable | Where | Description |
-|----------|-------|-------------|
-| `NEON_DATABASE_URL` | CI/local `.env` | Neon connection string for data sync |
-| `DATABASE_URL` | Vercel | Neon connection string for webapp |
-| `AUTH_SECRET` | Vercel | NextAuth.js secret (must be unique per environment) |
-| `AUTH_URL` | Vercel | Public URL of the webapp |
-| `GOOGLE_CLIENT_ID` | Vercel | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Vercel | Google OAuth client secret |
+- **ZHVI** — Zillow Home Value Index (home values by region and property type)
+- **ZORI** — Zillow Observed Rent Index (rental prices by region)
 
 ## License
 
