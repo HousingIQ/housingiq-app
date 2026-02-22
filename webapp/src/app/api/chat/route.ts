@@ -5,7 +5,7 @@ import {
   type UIMessage,
 } from "ai";
 import { pipeJsonRender } from "@json-render/core";
-import { agent } from "@/lib/ai/agent";
+import { getAgent, type ChatMode } from "@/lib/ai/agent";
 import { auth } from "@/lib/auth";
 import { chatRatelimit } from "@/lib/ai/ratelimit";
 
@@ -42,14 +42,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages }: { messages: UIMessage[] } = await request.json();
+  const {
+    messages,
+    mode = "chat",
+    modelId,
+  }: { messages: UIMessage[]; mode?: ChatMode; modelId?: string } =
+    await request.json();
 
+  const selectedAgent = getAgent(mode, modelId);
   const modelMessages = await convertToModelMessages(messages);
-  const result = await agent.stream({ messages: modelMessages });
+  const result = await selectedAgent.stream({ messages: modelMessages });
+
+  const rawStream = result.toUIMessageStream();
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
-      writer.merge(pipeJsonRender(result.toUIMessageStream()));
+      writer.merge(pipeJsonRender(rawStream));
     },
     onError: () => "Oops, an error occurred!",
   });

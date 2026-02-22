@@ -18,6 +18,7 @@
     "@ai-sdk/react": "^3.0.96",
     "@json-render/core": "^0.8.0",
     "@json-render/react": "^0.8.0",
+    "@json-render/react-pdf": "^0.8.0",
     "@json-render/shadcn": "^0.8.0",
     "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-dialog": "^1.1.15",
