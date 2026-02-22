@@ -2,10 +2,10 @@ import { gateway } from "@ai-sdk/gateway";
 import { extractReasoningMiddleware, wrapLanguageModel } from "ai";
 
 export const AVAILABLE_MODELS = [
-  { id: "openai/gpt-5.2", label: "GPT 5.2" },
-  { id: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5" },
   { id: "google/gemini-3-flash", label: "Gemini 3 Flash" },
+  { id: "anthropic/claude-haiku-4.5", label: "Claude Haiku 4.5" },
   { id: "anthropic/claude-3.7-sonnet-thinking", label: "Claude 3.7 Sonnet" },
+  // { id: "openai/gpt-5.2", label: "GPT 5.2" },
 ] as const;
 
 export const DEFAULT_MODEL = AVAILABLE_MODELS[0].id;
