@@ -2,16 +2,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Use Node.js 20+ and pnpm:
+
+```bash
+pnpm env use --global 20
+```
+
 First, run the development server:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
 pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
@@ -53,7 +53,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
   cd /home/hminle/gitrepos/housingiq/housingiq-app/webapp
 
   # Install Vercel CLI (if not installed)
-  npm i -g vercel
+  pnpm add -g vercel
 
   # Deploy
   vercel
@@ -73,4 +73,4 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
   5. Run Database Migrations (if needed)
 
   After setting env vars, run migrations locally pointing to Neon:
-  NEON_DATABASE_URL="your-neon-url" npm run db:push
+  NEON_DATABASE_URL="your-neon-url" pnpm db:push
