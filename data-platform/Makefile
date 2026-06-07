@@ -1,3 +1,5 @@
+UV_RUN := uv run
+
 .PHONY: help setup install dagster gx test lint clean
 
 help:  ## Show this help
@@ -10,78 +12,78 @@ help:  ## Show this help
 setup: install  ## Full setup: install dependencies
 
 install:  ## Install Python dependencies
-	pip install -e ".[dev]"
+	uv sync --extra dev
 
 # =============================================================================
 # Dagster
 # =============================================================================
 
 dagster:  ## Start Dagster webserver
-	DAGSTER_HOME=$(PWD) dagster dev -m housingiq_dagster.definitions
+	DAGSTER_HOME=$(PWD) $(UV_RUN) dagster dev -h 0.0.0.0 -m housingiq_dagster.definitions
 
 dagster-materialize:  ## Materialize all assets
-	DAGSTER_HOME=$(PWD) dagster asset materialize --select "*" -m housingiq_dagster.definitions
+	DAGSTER_HOME=$(PWD) $(UV_RUN) dagster asset materialize --select "*" -m housingiq_dagster.definitions
 
 # =============================================================================
 # Great Expectations
 # =============================================================================
 
 gx:  ## Run Great Expectations validation
-	great_expectations checkpoint run zillow_checkpoint
+	$(UV_RUN) great_expectations checkpoint run zillow_checkpoint
 
 gx-docs:  ## Build and open GX data docs
-	great_expectations docs build
+	$(UV_RUN) great_expectations docs build
 
 # =============================================================================
 # Ingestion
 # =============================================================================
 
 scrape:  ## Scrape Zillow URLs and save manifest
-	python -c "from ingestion.sources.zillow import ZillowScraper; s=ZillowScraper(); s.save_manifest(s.generate_all_urls())"
+	$(UV_RUN) python -c "from ingestion.sources.zillow import ZillowScraper; s=ZillowScraper(); s.save_manifest(s.generate_all_urls())"
 
 check-freshness:  ## Check which files need updating (dry run)
-	python scripts/check_freshness.py
+	$(UV_RUN) python scripts/check_freshness.py
 
 check-freshness-7d:  ## Check freshness with 7-day threshold
-	python scripts/check_freshness.py --max-age 7
+	$(UV_RUN) python scripts/check_freshness.py --max-age 7
 
 download:  ## Download Zillow data (re-download if >30 days old)
-	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(max_age_days=30)"
+	$(UV_RUN) python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(max_age_days=30)"
 
 download-force:  ## Force re-download all Zillow data
-	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(max_age_days=0)"
+	$(UV_RUN) python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(max_age_days=0)"
 
 download-all:  ## Download all categories (not just defaults)
-	python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(categories=None, max_age_days=30)"
+	$(UV_RUN) python -c "from ingestion.sources.zillow import download_zillow_data; download_zillow_data(categories=None, max_age_days=30)"
 
 transform:  ## Transform downloaded data
-	python -c "from ingestion.sources.zillow import ZillowSource; ZillowSource().run_full_pipeline()"
+	$(UV_RUN) python -c "from ingestion.sources.zillow import ZillowSource; ZillowSource().run_full_pipeline()"
 
 # =============================================================================
 # Testing
 # =============================================================================
 
 test:  ## Run pytest
-	pytest tests/ -v
+	$(UV_RUN) pytest tests/ -v
 
 test-cov:  ## Run pytest with coverage
-	pytest tests/ -v --cov=ingestion --cov=housingiq_dagster --cov-report=html
+	$(UV_RUN) pytest tests/ -v --cov=ingestion --cov=housingiq_dagster --cov-report=html
 
 # =============================================================================
 # Code Quality
 # =============================================================================
 
 lint:  ## Run linter (ruff)
-	ruff check .
+	$(UV_RUN) ruff check .
 
 lint-fix:  ## Fix linting issues
-	ruff check --fix .
+	$(UV_RUN) ruff check --fix .
 
 format:  ## Format code
-	ruff format .
+	$(UV_RUN) ruff format .
 
 typecheck:  ## Run type checker
-	mypy ingestion housingiq_dagster
+	$(UV_RUN) mypy ingestion housingiq_dagster
 
 # =============================================================================
 # Cleanup

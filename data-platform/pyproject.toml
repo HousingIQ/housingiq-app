@@ -3,7 +3,7 @@ name = "housingiq-data-platform"
 version = "0.1.0"
 description = "HousingIQ Data Platform - Dagster, Polars, Great Expectations"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 license = {text = "MIT"}
 
 dependencies = [

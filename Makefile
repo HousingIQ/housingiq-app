@@ -8,6 +8,9 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
+DATA_PLATFORM_DIR := data-platform
+DATA_PLATFORM_DAGSTER_HOME := $(CURDIR)/$(DATA_PLATFORM_DIR)
+
 .PHONY: up down logs psql clean help setup dev webapp dagster \
         docker-build docker-up docker-down docker-logs docker-init docker-restart \
         test-data test-data-integration test-data-all \
@@ -42,8 +45,8 @@ help:
 	@echo "  make clean          - Remove volumes and data"
 	@echo ""
 	@echo "Local Individual Services:"
-	@echo "  make webapp         - Start webapp only (Next.js on port 3000)"
-	@echo "  make dagster        - Start Dagster only (on port 3001)"
+	@echo "  make webapp         - Start webapp only (Next.js on port 3004)"
+	@echo "  make dagster        - Start Dagster only (on port 3003)"
 	@echo ""
 	@echo "Data Pipeline:"
 	@echo "  make materialize    - Materialize all Dagster assets"
@@ -75,8 +78,8 @@ docker-up:  ## Start all services via Docker Compose
 	@echo "Services:"
 	@echo "  PostgreSQL:  localhost:5432"
 	@echo "  pgweb:       http://localhost:8081"
-	@echo "  Webapp:      http://localhost:3000"
-	@echo "  Dagster UI:  http://localhost:3001"
+	@echo "  Webapp:      http://localhost:3004"
+	@echo "  Dagster UI:  http://localhost:3003"
 	@echo ""
 	@echo "If this is your first time, run:  make docker-init"
 	@echo ""
@@ -118,7 +121,7 @@ setup: up  ## First-time setup (local dev)
 	@sleep 5
 	@echo ""
 	@echo "[1/4] Installing data platform dependencies..."
-	cd data-platform && pip install -e ".[dev]"
+	uv sync --project $(DATA_PLATFORM_DIR) --extra dev
 	@echo ""
 	@echo "[2/4] Installing webapp dependencies..."
 	cd webapp && npm install
@@ -141,8 +144,8 @@ setup: up  ## First-time setup (local dev)
 	@echo "  make dev"
 	@echo ""
 	@echo "Or start services individually:"
-	@echo "  make webapp   - Start Next.js (port 3000)"
-	@echo "  make dagster  - Start Dagster (port 3001)"
+	@echo "  make webapp   - Start Next.js (port 3004)"
+	@echo "  make dagster  - Start Dagster (port 3003)"
 	@echo ""
 
 dev: up  ## Start all services for local development
@@ -151,8 +154,8 @@ dev: up  ## Start all services for local development
 	@echo "Services:"
 	@echo "  PostgreSQL: localhost:5432"
 	@echo "  pgweb:      http://localhost:8081"
-	@echo "  Webapp:     http://localhost:3000"
-	@echo "  Dagster:    http://localhost:3001"
+	@echo "  Webapp:     http://localhost:3004"
+	@echo "  Dagster:    http://localhost:3003"
 	@echo ""
 	@echo "Data directory: data-platform/data/"
 	@echo "  raw/      - Downloaded Zillow CSV files"
@@ -163,8 +166,8 @@ dev: up  ## Start all services for local development
 	@echo "(Press Ctrl+C to stop all services)"
 	@echo ""
 	@trap 'kill 0' SIGINT; \
-		(cd webapp && npm run dev) & \
-		(cd data-platform && DAGSTER_HOME=$(PWD)/data-platform dagster dev -m housingiq_dagster.definitions -p 3001) & \
+		(cd webapp && AUTH_URL=http://localhost:3004 npm run dev -- -p 3004) & \
+		(cd $(DATA_PLATFORM_DIR) && DAGSTER_HOME=$(DATA_PLATFORM_DAGSTER_HOME) uv run dagster dev -h 0.0.0.0 -m housingiq_dagster.definitions -p 3003) & \
 		wait
 
 # ============================================================================
@@ -172,7 +175,7 @@ dev: up  ## Start all services for local development
 # ============================================================================
 
 up:  ## Start PostgreSQL + pgweb containers only (for local dev)
-	@# Guard: fail if full-stack Docker is already running on ports 3000/3001
+	@# Guard: fail if full-stack Docker is already running on ports 3004/3003
 	@if docker ps --format '{{.Names}}' 2>/dev/null | grep -q 'housingiq-dagster-webserver'; then \
 		echo ""; \
 		echo "ERROR: Full-stack Docker is running (dagster-webserver container detected)."; \
@@ -209,10 +212,10 @@ clean:  ## Remove PostgreSQL volume and data (fresh start)
 # ============================================================================
 
 webapp: up  ## Start webapp (Next.js)
-	cd webapp && npm run dev
+	cd webapp && AUTH_URL=http://localhost:3004 npm run dev -- -p 3004
 
 dagster: up  ## Start Dagster UI
-	cd data-platform && DAGSTER_HOME=$(PWD)/data-platform dagster dev -m housingiq_dagster.definitions -p 3001
+	cd $(DATA_PLATFORM_DIR) && DAGSTER_HOME=$(DATA_PLATFORM_DAGSTER_HOME) uv run dagster dev -h 0.0.0.0 -m housingiq_dagster.definitions -p 3003
 
 # ============================================================================
 # Database Operations
@@ -232,7 +235,7 @@ db-studio:  ## Open Drizzle Studio
 # ============================================================================
 
 materialize:  ## Materialize all Dagster assets
-	cd data-platform && DAGSTER_HOME=$(PWD)/data-platform dagster asset materialize --select "*" -m housingiq_dagster.definitions
+	cd $(DATA_PLATFORM_DIR) && DAGSTER_HOME=$(DATA_PLATFORM_DAGSTER_HOME) uv run dagster asset materialize --select "*" -m housingiq_dagster.definitions
 
 # ============================================================================
 # Testing (Docker)
@@ -256,7 +259,7 @@ sync-to-neon:  ## Sync app schema from local PostgreSQL to Neon (production)
 		echo "Usage: NEON_DATABASE_URL='postgresql://...' make sync-to-neon"; \
 		exit 1; \
 	fi
-	cd data-platform && python scripts/sync_to_neon.py
+	cd $(DATA_PLATFORM_DIR) && uv run python scripts/sync_to_neon.py
 
 sync-to-neon-dry:  ## Dry run: show what would be synced to Neon
 	@if [ -z "$$NEON_DATABASE_URL" ]; then \
@@ -264,4 +267,4 @@ sync-to-neon-dry:  ## Dry run: show what would be synced to Neon
 		echo "Usage: NEON_DATABASE_URL='postgresql://...' make sync-to-neon-dry"; \
 		exit 1; \
 	fi
-	cd data-platform && python scripts/sync_to_neon.py --dry-run
+	cd $(DATA_PLATFORM_DIR) && uv run python scripts/sync_to_neon.py --dry-run
