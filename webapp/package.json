@@ -2,6 +2,11 @@
   "name": "webapp",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=20.9.0 <25",
+    "pnpm": ">=10.24.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

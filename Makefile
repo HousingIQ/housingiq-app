@@ -10,11 +10,28 @@ endif
 
 DATA_PLATFORM_DIR := data-platform
 DATA_PLATFORM_DAGSTER_HOME := $(CURDIR)/$(DATA_PLATFORM_DIR)
+WEBAPP_DIR := webapp
 
-.PHONY: up down logs psql clean help setup dev webapp dagster \
+.PHONY: require-node require-pnpm \
+        up down logs psql clean help setup dev webapp dagster \
         docker-build docker-up docker-down docker-logs docker-init docker-restart \
         test-data test-data-integration test-data-all \
         sync-to-neon sync-to-neon-dry
+
+require-node:
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo "ERROR: node is required for webapp pnpm scripts, but it is not on PATH."; \
+		echo "Install Node.js 20+ or run: pnpm env use --global 20"; \
+		echo "Then restart your shell and retry."; \
+		exit 1; \
+	fi
+
+require-pnpm:
+	@if ! command -v pnpm >/dev/null 2>&1; then \
+		echo "ERROR: pnpm is required for webapp commands, but it is not on PATH."; \
+		echo "Install pnpm or enable it with Corepack: corepack enable pnpm"; \
+		exit 1; \
+	fi
 
 # Default target
 help:
@@ -112,7 +129,7 @@ docker-clean:  ## Stop services and remove all volumes (fresh start)
 # Local Quick Start
 # ============================================================================
 
-setup: up  ## First-time setup (local dev)
+setup: require-node require-pnpm up  ## First-time setup (local dev)
 	@echo "=========================================="
 	@echo "Setting up HousingIQ Development Environment"
 	@echo "=========================================="
@@ -124,13 +141,13 @@ setup: up  ## First-time setup (local dev)
 	uv sync --project $(DATA_PLATFORM_DIR) --extra dev
 	@echo ""
 	@echo "[2/4] Installing webapp dependencies..."
-	cd webapp && npm install
+	cd $(WEBAPP_DIR) && pnpm install
 	@echo ""
 	@echo "[3/4] Pushing database schema..."
-	cd webapp && npm run db:push
+	cd $(WEBAPP_DIR) && pnpm db:push
 	@echo ""
 	@echo "[4/4] Seeding test user..."
-	cd webapp && npm run db:seed-test-user
+	cd $(WEBAPP_DIR) && pnpm db:seed-test-user
 	@echo ""
 	@echo "=========================================="
 	@echo "Setup Complete!"
@@ -148,7 +165,7 @@ setup: up  ## First-time setup (local dev)
 	@echo "  make dagster  - Start Dagster (port 3003)"
 	@echo ""
 
-dev: up  ## Start all services for local development
+dev: require-node require-pnpm up  ## Start all services for local development
 	@echo "Starting HousingIQ development environment..."
 	@echo ""
 	@echo "Services:"
@@ -166,7 +183,7 @@ dev: up  ## Start all services for local development
 	@echo "(Press Ctrl+C to stop all services)"
 	@echo ""
 	@trap 'kill 0' SIGINT; \
-		(cd webapp && AUTH_URL=http://localhost:3004 npm run dev -- -p 3004) & \
+		(cd $(WEBAPP_DIR) && AUTH_URL=http://localhost:3004 pnpm dev -H 0.0.0.0 -p 3004) & \
 		(cd $(DATA_PLATFORM_DIR) && DAGSTER_HOME=$(DATA_PLATFORM_DAGSTER_HOME) uv run dagster dev -h 0.0.0.0 -m housingiq_dagster.definitions -p 3003) & \
 		wait
 
@@ -211,8 +228,8 @@ clean:  ## Remove PostgreSQL volume and data (fresh start)
 # Individual Services (local dev)
 # ============================================================================
 
-webapp: up  ## Start webapp (Next.js)
-	cd webapp && AUTH_URL=http://localhost:3004 npm run dev -- -p 3004
+webapp: require-node require-pnpm up  ## Start webapp (Next.js)
+	cd $(WEBAPP_DIR) && AUTH_URL=http://localhost:3004 pnpm dev -H 0.0.0.0 -p 3004
 
 dagster: up  ## Start Dagster UI
 	cd $(DATA_PLATFORM_DIR) && DAGSTER_HOME=$(DATA_PLATFORM_DAGSTER_HOME) uv run dagster dev -h 0.0.0.0 -m housingiq_dagster.definitions -p 3003
@@ -221,14 +238,14 @@ dagster: up  ## Start Dagster UI
 # Database Operations
 # ============================================================================
 
-db-push:  ## Push Drizzle schema to database
-	cd webapp && npm run db:push
+db-push: require-node require-pnpm  ## Push Drizzle schema to database
+	cd $(WEBAPP_DIR) && pnpm db:push
 
-db-seed:  ## Seed test user
-	cd webapp && npm run db:seed-test-user
+db-seed: require-node require-pnpm  ## Seed test user
+	cd $(WEBAPP_DIR) && pnpm db:seed-test-user
 
-db-studio:  ## Open Drizzle Studio
-	cd webapp && npm run db:studio
+db-studio: require-node require-pnpm  ## Open Drizzle Studio
+	cd $(WEBAPP_DIR) && pnpm db:studio
 
 # ============================================================================
 # Data Pipeline

@@ -10,4 +10,4 @@ Dockerfile
 .vercel
 coverage
 .DS_Store
-# Note: .npmrc is intentionally NOT ignored (needed for legacy-peer-deps)
+# Note: .npmrc is intentionally NOT ignored (needed by package manager config)

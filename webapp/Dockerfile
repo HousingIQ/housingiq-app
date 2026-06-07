@@ -13,9 +13,11 @@ FROM node:20-alpine AS deps
 
 WORKDIR /app
 
+RUN corepack enable
+
 # Install dependencies based on the lockfile
-COPY package.json package-lock.json* .npmrc* ./
-RUN npm ci
+COPY package.json pnpm-lock.yaml .npmrc* ./
+RUN pnpm install --frozen-lockfile
 
 # ---------------------------------------------------------------------------
 # Stage 2: builder - Build the Next.js application
@@ -23,6 +25,8 @@ RUN npm ci
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+RUN corepack enable
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -32,7 +36,7 @@ COPY . .
 ENV DATABASE_URL="postgresql://placeholder:placeholder@placeholder:5432/placeholder"
 ENV AUTH_SECRET="build-time-placeholder-secret"
 
-RUN npm run build
+RUN pnpm build
 
 # ---------------------------------------------------------------------------
 # Stage 3: runner - Production server (default target)
@@ -68,7 +72,9 @@ FROM node:20-alpine AS init
 
 WORKDIR /app
 
+RUN corepack enable
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-CMD ["sh", "-c", "npx drizzle-kit push && npx tsx scripts/seed-test-user.ts"]
+CMD ["sh", "-c", "pnpm exec drizzle-kit push && pnpm exec tsx scripts/seed-test-user.ts"]
