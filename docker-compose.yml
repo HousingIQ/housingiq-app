@@ -9,8 +9,8 @@
 # Services:
 #   postgres          - PostgreSQL 16 database
 #   pgweb             - Database web UI (port 8081)
-#   webapp            - Next.js frontend (port 3000)
-#   dagster-webserver - Dagster UI (port 3001)
+#   webapp            - Next.js frontend (port 3004)
+#   dagster-webserver - Dagster UI (port 3003)
 #   dagster-daemon    - Dagster scheduler/sensor daemon
 #
 # Profiles:
@@ -79,12 +79,12 @@ services:
       target: runner
     container_name: housingiq-webapp
     ports:
-      - "3000:3000"
+      - "3004:3000"
     environment:
       DATABASE_URL: postgresql://housingiq:housingiq@postgres:5432/housingiq
       AUTH_SECRET: ${AUTH_SECRET:-super-secret-change-me-in-production}
       AUTH_TRUST_HOST: "true"
-      AUTH_URL: http://localhost:3000
+      AUTH_URL: http://localhost:3004
       # Google OAuth (optional - set in .env if needed)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
@@ -106,10 +106,10 @@ services:
     command: >
       dagster-webserver
         -h 0.0.0.0
-        -p 3001
+        -p 3003
         -w /opt/dagster/dagster_home/workspace.yaml
     ports:
-      - "3001:3001"
+      - "3003:3003"
     environment:
       DAGSTER_HOME: /opt/dagster/dagster_home
       # Dagster internal storage uses a separate 'dagster' database

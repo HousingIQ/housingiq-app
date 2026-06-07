@@ -4,7 +4,8 @@ Data engineering platform for HousingIQ using Dagster, Polars, and Great Expecta
 
 ## Prerequisites
 
-- Python 3.11+
+- uv
+- Python 3.11-3.13 (`uv` will use Python 3.12 via `.python-version`)
 - PostgreSQL (via Docker: `make up` from root)
 
 ## Setup
@@ -12,6 +13,9 @@ Data engineering platform for HousingIQ using Dagster, Polars, and Great Expecta
 ```bash
 make setup    # Install dependencies
 ```
+
+Python dependencies are managed by `uv`; no global `dagster`, `pytest`, or
+`great_expectations` installation is required.
 
 ## Project Structure
 
@@ -51,7 +55,7 @@ zillow_manifest → zillow_raw_files → zillow_zhvi_transformed
 ## Commands
 
 ```bash
-make dagster              # Start Dagster UI (http://localhost:3001)
+make dagster              # Start Dagster UI (http://localhost:3003)
 make dagster-materialize  # Materialize all assets
 make test                 # Run tests
 make lint                 # Run linter
@@ -66,9 +70,9 @@ Sync local `app` schema to Neon (production). Set `NEON_DATABASE_URL` in the rep
 make sync-to-neon
 
 # Or directly
-python scripts/sync_to_neon.py              # Sync all tables
-python scripts/sync_to_neon.py --clean      # Drop all Neon tables first, then sync fresh
-python scripts/sync_to_neon.py --dry-run    # Preview what would be synced
+uv run python scripts/sync_to_neon.py              # Sync all tables
+uv run python scripts/sync_to_neon.py --clean      # Drop all Neon tables first, then sync fresh
+uv run python scripts/sync_to_neon.py --dry-run    # Preview what would be synced
 ```
 
 ## Region Filtering
